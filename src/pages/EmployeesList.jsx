@@ -259,7 +259,7 @@ const EmployeesList = () => {
     }
     const normalizedPath = photoPath.replace(/\\/g, '/');
     const filename = normalizedPath.split('/').pop() || "";
-    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+    const baseUrl = import.meta.env.VITE_API_URL || "https://hrmsbackendfresh.onrender.com";
     return `${baseUrl}/uploads/${filename}`;
   };
 

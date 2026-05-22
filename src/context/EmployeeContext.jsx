@@ -5,7 +5,7 @@ const EmployeeContext = createContext();
 
 // NOTE: Your backend is set to PORT 500. 
 // If it's actually 5000, change it here.
-const API_URL = "http://localhost:5000/api"; 
+const API_URL = "https://hrmsbackendfresh.onrender.com/api"; 
 
 export const EmployeeProvider = ({ children }) => {
   const [employees, setEmployees] = useState([]);
