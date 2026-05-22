@@ -1,8 +1,15 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import { useEmployee } from "../context/EmployeeContext";
 
 const Onboarding = () => {
     const printRef = useRef();
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const employeeId = searchParams.get("employeeId");
+
+    const { employees, submitOnboarding } = useEmployee();
 
     const [formData, setFormData] = useState({
         name: "",
@@ -11,7 +18,9 @@ const Onboarding = () => {
         joiningDate: "",
         pan: "",
         bankAccount: "",
+        bankName: "",
         ifsc: "",
+        adhar: "",
         photo: null,
         idProof: null,
         addressProof: null,
@@ -20,8 +29,48 @@ const Onboarding = () => {
         bgVerification: false,
     });
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState({});
-    const [uploadStatus, setUploadStatus] = useState({});
+
+    // Match the input style from Termination Letter
+    const inputClass = "block w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-orange-500/20 outline-none transition-all shadow-sm bg-white";
+
+    // Helper to generate full URL for existing uploaded files
+    const getPhotoUrl = (photoPath) => {
+        if (!photoPath) return null;
+        if (photoPath.startsWith("http")) return photoPath;
+        const normalized = photoPath.replace(/\\/g, "/");
+        const filename = normalized.split("/").pop() || "";
+        const base = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        return `${base}/uploads/${filename}`;
+    };
+
+    useEffect(() => {
+        if (employeeId && employees.length > 0) {
+            const emp = employees.find((e) => e._id === employeeId);
+            if (emp) {
+                setFormData((prev) => ({
+                    ...prev,
+                    name: emp.name || "",
+                    designation: emp.designation || "",
+                    department: emp.department || "",
+                    joiningDate: emp.dateOfJoining ? emp.dateOfJoining.split("T")[0] : "",
+                    pan: emp.panNumber || "",
+                    bankAccount: emp.accountNumber || "", 
+                    bankName: emp.bankName || "",
+                    ifsc: emp.ifscCode || "",
+                    adhar: emp.adharNumber || "",
+
+                    // Auto-fill existing files (string paths from DB)
+                    photo: emp.photo || null,
+                    idProof: emp.adharCardDoc || null,
+                    addressProof: emp.panCardDoc || null,
+                    educationProof: emp.educationProof || null,
+                    experienceLetter: emp.experienceLetter || null,
+                }));
+            }
+        }
+    }, [employeeId, employees]);
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -43,7 +92,6 @@ const Onboarding = () => {
                 return;
             }
             setFormData((prev) => ({ ...prev, [field]: file }));
-            setUploadStatus((prev) => ({ ...prev, [field]: "done" }));
         }
     };
 
@@ -52,281 +100,286 @@ const Onboarding = () => {
         if (!formData.name.trim()) newErrors.name = "Name is required";
         if (!formData.designation.trim()) newErrors.designation = "Designation is required";
         if (!formData.joiningDate) newErrors.joiningDate = "Joining date is required";
-        if (!formData.pan.match(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/)) {
+
+        const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+        if (formData.pan && !panRegex.test(formData.pan)) {
             newErrors.pan = "Invalid PAN format (e.g. ABCDE1234F)";
         }
-        if (!formData.idProof) newErrors.idProof = "ID Proof is required";
-        if (!formData.addressProof) newErrors.addressProof = "Address Proof is required";
+
+        if (!formData.idProof) newErrors.idProof = "Adhar Card is required";
+        if (!formData.addressProof) newErrors.addressProof = "Pan Card is required";
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
-    const handlePrint = () => {
+    const handleSubmitAndPrint = async () => {
         if (!validateForm()) {
             alert("Please fill all required fields and upload mandatory documents.");
             return;
         }
-        window.print();
+
+        if (!employeeId) {
+            alert("Employee ID not found in URL.");
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            await submitOnboarding(employeeId, formData);
+            alert("Onboarding data saved to database successfully!");
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        } catch (err) {
+            console.error(err);
+            alert(err.message || "Failed to save data to backend.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const isCompleted =
-        formData.idProof &&
-        formData.addressProof &&
-        formData.bgVerification;
-
-    const getFileName = (file) => (file ? file.name : "Not uploaded");
+    // Shared Header/Footer logic for Print
+    const LetterHead = () => (
+        <div style={{ borderBottom: "2px solid #f27022", paddingBottom: "10px", marginBottom: "20px" }}>
+            <table style={{ width: "100%" }}>
+                <tbody>
+                    <tr>
+                        <td style={{ width: "60%" }}>
+                            <img src="/blackLogo.png" alt="Logo" style={{ width: "180px", height: "auto" }} />
+                            <div style={{ fontSize: "10px", fontWeight: "bold", color: "#666", letterSpacing: "1px", marginTop: "4px" }}>DIGITAL CREATIVE AGENCY</div>
+                        </td>
+                        <td style={{ textAlign: "right", fontSize: "11px", color: "#333", verticalAlign: "middle" }}>
+                            <strong>VIRAL ADS MEDIA</strong><br />
+                            B-27, Budh Vihar Phase 1, New Delhi - 110086<br />
+                            Date: {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    );
 
     return (
-        <div className="flex min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50">
-            <div className="print:hidden">
+        <div className="flex min-h-screen bg-slate-100">
+            <style>{`
+                @media print {
+                    @page { size: A4; margin: 0mm; }
+                    body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; }
+                    .no-print { display: none !important; }
+                }
+            `}</style>
+
+            <div className="no-print">
                 <Sidebar />
             </div>
 
-            <div className="flex-1 p-6 md:p-10">
-                <h1 className="text-3xl md:text-4xl font-extrabold text-slate-800 mb-10 print:hidden">
-                    Employee Onboarding
-                </h1>
+            <main className="flex-1 p-8 print:p-0">
+                <div className="max-w-4xl mx-auto">
 
-                {/* Form Card */}
-                <div className="bg-white/80 backdrop-blur-xl border border-white/40 shadow-2xl rounded-3xl overflow-hidden mb-12 print:hidden">
-                    <div className="px-8 py-6 bg-gradient-to-r from-orange-600 to-orange-500 text-white">
-                        <h2 className="text-2xl font-bold">Onboarding Details</h2>
-                        <p className="text-orange-100 mt-1">Complete information & upload documents</p>
-                    </div>
+                    {/* FORM SECTION - DESIGN MATCHED */}
+                    <div className="bg-white rounded-xl shadow-md p-8 no-print border border-slate-200">
+                        <h1 className="text-2xl font-bold mb-6 text-gray-800 border-l-4 border-orange-600 pl-4">
+                            Employee Onboarding
+                        </h1>
 
-                    <div className="p-8">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {[
                                 { name: "name", label: "Full Name", type: "text", required: true },
                                 { name: "designation", label: "Designation", type: "text", required: true },
-                                { name: "department", label: "Department", type: "text" },
                                 { name: "joiningDate", label: "Date of Joining", type: "date", required: true },
                                 { name: "pan", label: "PAN Number", type: "text", required: true, placeholder: "ABCDE1234F" },
+                                { name: "adhar", label: "Aadhaar Number", type: "text" },
+                                { name: "bankName", label: "Bank Name", type: "text", placeholder: "e.g. HDFC Bank" },
                                 { name: "bankAccount", label: "Bank Account Number", type: "text" },
                                 { name: "ifsc", label: "IFSC Code", type: "text", placeholder: "SBIN0001234" },
                             ].map((field) => (
-                                <div key={field.name} className="space-y-2">
-                                    <label className="block text-sm font-medium text-slate-700">
+                                <div key={field.name}>
+                                    <label className="block text-sm font-medium mb-1">
                                         {field.label}{field.required && <span className="text-red-500 ml-1">*</span>}
                                     </label>
                                     <input
                                         type={field.type}
                                         name={field.name}
-                                        value={formData[field.name]}
+                                        value={formData[field.name] || ""}
                                         onChange={handleChange}
                                         placeholder={field.placeholder}
-                                        className={`w-full px-4 py-3 rounded-xl border ${errors[field.name] ? "border-red-400" : "border-slate-200"
-                                            } bg-white/60 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 outline-none transition-all`}
+                                        className={inputClass}
                                     />
-                                    {errors[field.name] && (
-                                        <p className="text-red-500 text-sm mt-1">{errors[field.name]}</p>
-                                    )}
+                                    {errors[field.name] && <p className="text-red-500 text-xs mt-1">{errors[field.name]}</p>}
                                 </div>
                             ))}
 
-                            {/* Photo Upload */}
-                            <div className="space-y-2 md:col-span-2 lg:col-span-1">
-                                <label className="block text-sm font-medium text-slate-700">Employee Photo</label>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Employee Photo</label>
                                 <div className="flex items-center gap-4">
                                     {formData.photo && (
                                         <img
-                                            src={URL.createObjectURL(formData.photo)}
+                                            src={
+                                                formData.photo instanceof File
+                                                    ? URL.createObjectURL(formData.photo)
+                                                    : getPhotoUrl(formData.photo)
+                                            }
                                             alt="Preview"
-                                            className="w-20 h-20 object-cover rounded-full border-2 border-orange-200"
+                                            className="w-10 h-10 object-cover rounded-full border border-orange-200"
+                                            onError={(e) => {
+                                                e.target.src = "https://via.placeholder.com/40?text=No+Photo";
+                                            }}
                                         />
                                     )}
                                     <input
                                         type="file"
                                         accept="image/*"
                                         onChange={(e) => handleFileChange(e, "photo")}
-                                        className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                                        className="text-xs file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
                                     />
                                 </div>
+                                {formData.photo && typeof formData.photo === "string" && (
+                                    <p className="text-xs text-green-600 mt-1">
+                                        Current: {formData.photo.split("/").pop()}
+                                    </p>
+                                )}
                             </div>
-                        </div>
 
-                        {/* Documents Section */}
-                        <div className="mt-10">
-                            <h3 className="text-lg font-semibold text-slate-800 mb-4">Required Documents</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {[
-                                    { field: "idProof", label: "ID Proof (Aadhaar / Passport / Voter ID)", accept: ".pdf,.jpg,.jpeg,.png" },
-                                    { field: "addressProof", label: "Address Proof (Aadhaar / Utility Bill / Passport)", accept: ".pdf,.jpg,.jpeg,.png" },
-                                    { field: "educationProof", label: "Educational Certificates", accept: ".pdf" },
-                                    { field: "experienceLetter", label: "Experience / Relieving Letter (optional)", accept: ".pdf" },
-                                ].map((doc) => (
-                                    <div key={doc.field} className="space-y-2">
-                                        <label className="block text-sm font-medium text-slate-700">
-                                            {doc.label}
-                                            {(doc.field === "idProof" || doc.field === "addressProof") && (
-                                                <span className="text-red-500 ml-1">*</span>
+                            <div className="md:col-span-2 mt-4">
+                                <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Required Documents</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {[
+                                        { field: "idProof", label: "Adhar Card", accept: ".pdf,.jpg,.jpeg,.png" },
+                                        { field: "addressProof", label: "Pan Card", accept: ".pdf,.jpg,.jpeg,.png" },
+                                        { field: "educationProof", label: "Educational Certificates", accept: ".pdf" },
+                                        { field: "experienceLetter", label: "Experience Letter (optional)", accept: ".pdf" },
+                                    ].map((doc) => (
+                                        <div key={doc.field} className="p-3 border border-gray-100 rounded-lg bg-slate-50">
+                                            <label className="block text-xs font-bold mb-2">
+                                                {doc.label} {(doc.field === "idProof" || doc.field === "addressProof") && <span className="text-red-500">*</span>}
+                                            </label>
+                                            <input
+                                                type="file"
+                                                accept={doc.accept}
+                                                onChange={(e) => handleFileChange(e, doc.field)}
+                                                className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-white file:shadow-sm"
+                                            />
+                                            {formData[doc.field] && (
+                                                <p className="text-[10px] text-green-600 mt-1">
+                                                    ✓ {formData[doc.field] instanceof File 
+                                                        ? formData[doc.field].name 
+                                                        : formData[doc.field].split("/").pop() || "Existing document"}
+                                                </p>
                                             )}
-                                        </label>
-                                        <input
-                                            type="file"
-                                            accept={doc.accept}
-                                            onChange={(e) => handleFileChange(e, doc.field)}
-                                            className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 cursor-pointer"
-                                        />
-                                        {formData[doc.field] && (
-                                            <p className="text-sm text-green-600 mt-1">
-                                                Uploaded: {formData[doc.field].name}
-                                            </p>
-                                        )}
-                                        {errors[doc.field] && (
-                                            <p className="text-red-500 text-sm">{errors[doc.field]}</p>
-                                        )}
-                                    </div>
-                                ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-2">
+                                <label className="flex items-center gap-3 text-sm font-medium">
+                                    <input
+                                        type="checkbox"
+                                        name="bgVerification"
+                                        checked={formData.bgVerification}
+                                        onChange={handleChange}
+                                        className="h-4 w-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500"
+                                    />
+                                    Background Verification Completed
+                                </label>
+                            </div>
+
+                            <button
+                                onClick={handleSubmitAndPrint}
+                                disabled={isSubmitting}
+                                className="md:col-span-2 bg-orange-600 text-white py-3 rounded-lg font-bold hover:bg-orange-700 transition-all shadow-md disabled:bg-gray-400"
+                            >
+                                {isSubmitting ? "Saving Data..." : "Save & Print Onboarding Report"}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* PRINT SECTION - DESIGN MATCHED */}
+                    <div ref={printRef} className="hidden print:block">
+                        <div style={{
+                            width: "210mm",
+                            minHeight: "297mm",
+                            padding: "15mm 20mm",
+                            margin: "0 auto",
+                            backgroundColor: "white",
+                            fontFamily: "'Times New Roman', Times, serif",
+                            fontSize: "14px",
+                            lineHeight: "1.5",
+                            color: "#1a1a1a",
+                            position: "relative"
+                        }}>
+                            <LetterHead />
+
+                            <h1 style={{ textAlign: "center", fontSize: "22px", margin: "20px 0", textDecoration: "underline", textTransform: "uppercase", fontWeight: "bold" }}>
+                                ONBOARDING CONFIRMATION REPORT
+                            </h1>
+
+                            <div style={{ marginTop: "30px" }}>
+                                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                    <tbody>
+                                        <tr>
+                                            <td style={{ padding: "10px 0", width: "75%" }}>
+                                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                                                    <p><strong>Full Name:</strong> {formData.name || "-"}</p>
+                                                    <p><strong>Designation:</strong> {formData.designation || "-"}</p>
+                                                    <p><strong>Department:</strong> {formData.department || "-"}</p>
+                                                    <p><strong>Joining Date:</strong> {formData.joiningDate || "-"}</p>
+                                                    <p><strong>PAN:</strong> {formData.pan || "-"}</p>
+                                                    <p><strong>Aadhaar:</strong> {formData.adhar || "-"}</p>
+                                                    <p><strong>Bank Account:</strong> {formData.bankAccount || "-"}</p>
+                                                    <p><strong>IFSC Code:</strong> {formData.ifsc || "-"}</p>
+                                                </div>
+                                            </td>
+                                            <td style={{ width: "25%", textAlign: "right", verticalAlign: "top" }}>
+                                                {formData.photo && (
+                                                    <img
+                                                        src={formData.photo instanceof File 
+                                                            ? URL.createObjectURL(formData.photo) 
+                                                            : getPhotoUrl(formData.photo)}
+                                                        alt="Employee"
+                                                        style={{ width: "100px", height: "120px", objectFit: "cover", border: "1px solid #ddd", padding: "2px" }}
+                                                        onError={(e) => e.target.src = "https://via.placeholder.com/100?text=No+Photo"}
+                                                    />
+                                                )}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div style={{ marginTop: "40px", padding: "20px", border: "1px solid #eee", borderRadius: "8px" }}>
+                                <h3 style={{ fontSize: "16px", fontWeight: "bold", borderBottom: "1px solid #eee", paddingBottom: "5px", marginBottom: "15px" }}>Document Verification Checklist</h3>
+                                <ul style={{ listStyle: "none", padding: 0 }}>
+                                    <li style={{ marginBottom: "8px" }}>{formData.idProof ? "✓" : "☐"} Aadhaar Card Verification</li>
+                                    <li style={{ marginBottom: "8px" }}>{formData.addressProof ? "✓" : "☐"} PAN Card Verification</li>
+                                    <li style={{ marginBottom: "8px" }}>{formData.educationProof ? "✓" : "☐"} Educational Certificates Collected</li>
+                                    <li style={{ marginBottom: "8px" }}>{formData.bgVerification ? "✓" : "☐"} Background Verification Status</li>
+                                </ul>
+                            </div>
+
+                            <div style={{ marginTop: "60px", display: "flex", justifyContent: "space-between" }}>
+                                <div>
+                                    <p>Prepared By,</p>
+                                    <div style={{ height: "40px" }}></div>
+                                    <p>__________________________<br /><strong>HR Department</strong><br />Viral Ads Media</p>
+                                </div>
+                                <div style={{ textAlign: "right" }}>
+                                    <p>Employee Acknowledgment,</p>
+                                    <div style={{ height: "40px" }}></div>
+                                    <p>__________________________<br /><strong>{formData.name || "Employee"}</strong><br />Signature</p>
+                                </div>
+                            </div>
+
+                            <div style={{ position: "absolute", bottom: "15mm", left: 0, right: 0, textAlign: "center", fontSize: "10.5px", color: "#777" }}>
+                                <div style={{ borderTop: "1px solid #eee", width: "90%", margin: "0 auto 8px auto" }}></div>
+                                <strong>Viral Ads Media | Digital Creative Agency</strong><br />
+                                B-27, Budh Vihar Phase 1, New Delhi-86 | Tel: 9354491934
                             </div>
                         </div>
-
-                        {/* Checkbox */}
-                        <div className="mt-8 space-y-3">
-                            <label className="flex items-center gap-3 text-slate-700">
-                                <input
-                                    type="checkbox"
-                                    name="bgVerification"
-                                    checked={formData.bgVerification}
-                                    onChange={handleChange}
-                                    className="h-5 w-5 text-orange-600 rounded border-slate-300 focus:ring-orange-500"
-                                />
-                                Background Verification Completed
-                            </label>
-                        </div>
-
-                        <button
-                            onClick={handlePrint}
-                            className="mt-10 w-full md:w-auto px-10 py-4 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-xl shadow-lg shadow-orange-200/50 hover:shadow-xl hover:shadow-orange-300/50 transform hover:-translate-y-1 transition-all duration-300"
-                        >
-                            Generate & Print Onboarding Report
-                        </button>
                     </div>
                 </div>
-
-               {/* Printable Report - SINGLE PAGE A4 */}
-<div
-  ref={printRef}
-  className="
-  bg-white
-  print:w-[210mm]
-  print:max-w-[210mm]
-  print:min-h-[260mm]
-  print:p-6
-  print:mx-auto
-  print:overflow-visible
-  print:text-[13px]
-"
->
-
-  {/* Header */}
-  <div className="text-center border-b pb-3 mb-4">
-    <h2 className="text-2xl font-bold tracking-wide text-gray-800">
-      VIRAL ADS MEDIA
-    </h2>
-    <p className="text-sm text-gray-600">
-      Employee Onboarding Confirmation
-    </p>
-    <p className="text-[11px] text-gray-500">
-      Date: {new Date().toLocaleDateString("en-IN")}
-    </p>
-  </div>
-
-  {/* Top Section */}
-  <div className="flex justify-between items-start mb-4">
-
-    {/* Employee Details */}
-    <div className="grid grid-cols-2 gap-x-6 gap-y-2 flex-1">
-      <p><strong>Name:</strong> {formData.name || "-"}</p>
-      <p><strong>Designation:</strong> {formData.designation || "-"}</p>
-      <p><strong>Department:</strong> {formData.department || "-"}</p>
-      <p><strong>Joining Date:</strong> {formData.joiningDate || "-"}</p>
-      <p><strong>PAN:</strong> {formData.pan || "-"}</p>
-      <p><strong>Bank A/C:</strong> {formData.bankAccount || "-"}</p>
-      <p><strong>IFSC:</strong> {formData.ifsc || "-"}</p>
-    </div>
-
-    {/* Photo */}
-    {formData.photo && (
-      <div className="ml-4">
-        <img
-          src={URL.createObjectURL(formData.photo)}
-          alt="Employee"
-          className="w-24 h-24 object-cover border border-gray-300"
-        />
-      </div>
-    )}
-  </div>
-
-  {/* Document Table */}
-  <div className="mb-4">
-    <h3 className="font-semibold mb-2 border-b pb-1">
-      Document Verification Status
-    </h3>
-
-    <table className="w-full border border-gray-300 text-[12px]">
-      <tbody>
-        {[
-          { label: "ID Proof", value: formData.idProof ? "Submitted" : "Pending" },
-          { label: "Address Proof", value: formData.addressProof ? "Submitted" : "Pending" },
-          { label: "Educational Certificates", value: formData.educationProof ? "Submitted" : "Not Submitted" },
-          { label: "Experience Letter", value: formData.experienceLetter ? "Submitted" : "Not Submitted" },
-          { label: "Background Verification", value: formData.bgVerification ? "Completed" : "Pending" },
-        ].map((item, index) => (
-          <tr key={index}>
-            <td className="border p-2 w-1/2">{item.label}</td>
-            <td
-              className={`border p-2 font-medium ${
-                item.value === "Submitted" || item.value === "Completed"
-                  ? "text-green-700"
-                  : "text-red-600"
-              }`}
-            >
-              {item.value}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-
-  {/* Status */}
-  <div className="text-center my-4">
-    <p className="text-lg font-bold">
-      Status:
-      <span
-        className={`ml-2 ${
-          isCompleted ? "text-green-700" : "text-orange-600"
-        }`}
-      >
-        {isCompleted ? "COMPLETED" : "PENDING"}
-      </span>
-    </p>
-  </div>
-
-  {/* Declaration */}
-  <div className="text-[12px] text-gray-600 mb-6">
-    This document confirms completion of employee onboarding
-    process as per HR compliance guidelines.
-  </div>
-
-  {/* Signatures */}
-  <div className="flex justify-between mt-10">
-    <div>
-      <p className="mb-8">Employee Signature</p>
-      <div className="border-t border-gray-400 w-40"></div>
-    </div>
-
-    <div className="text-right">
-      <p className="mb-8">Authorized Signatory</p>
-      <div className="border-t border-gray-400 w-40 ml-auto"></div>
-      <p className="mt-1 font-semibold text-sm">HR Department</p>
-    </div>
-  </div>
-
-</div>
-            </div>
+            </main>
         </div>
     );
 };
