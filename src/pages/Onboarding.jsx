@@ -41,7 +41,7 @@ const Onboarding = () => {
         if (photoPath.startsWith("http")) return photoPath;
         const normalized = photoPath.replace(/\\/g, "/");
         const filename = normalized.split("/").pop() || "";
-        const base = import.meta.env.VITE_API_URL || " http://localhost:5000";
+        const base = import.meta.env.VITE_API_URL || "https://hrmsbackend.viraladsmedia.com";
         return `${base}/uploads/${filename}`;
     };
 
