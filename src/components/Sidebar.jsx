@@ -76,9 +76,7 @@ const Sidebar = () => {
       {/* Logo Section */}
       <div className="px-8 pt-8 pb-10">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg shadow-orange-500/20">
-            <Sparkles className="text-white" size={20} />
-          </div>
+         
           <h2 className="text-2xl font-black tracking-tight text-white leading-none">
             HR<span className="text-orange-500">MS</span>
           </h2>
