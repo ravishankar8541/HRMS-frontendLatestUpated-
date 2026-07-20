@@ -4,6 +4,7 @@ import Dashboard from "./pages/Dashboard";
 import OfferLetter from "./pages/OfferLetter";
 import AppointmentLetter from "./pages/AppointmentLetter";
 import SalarySlip from "./pages/SalarySlip";
+import IncrementLetter from "./pages/IncrementLetter"
 import Onboarding from "./pages/Onboarding";
 import Offboarding from "./pages/Offboarding";
 import FNF from "./pages/FNF";
@@ -73,6 +74,14 @@ function App() {
           element={
             <ProtectedRoute>
               <SalarySlip />
+            </ProtectedRoute>
+          }
+        />
+         <Route
+          path="/increment"
+          element={
+            <ProtectedRoute>
+              <IncrementLetter />
             </ProtectedRoute>
           }
         />

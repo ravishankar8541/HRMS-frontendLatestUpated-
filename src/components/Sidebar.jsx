@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronRight,
   Sparkles,
+  TrendingUp, // Added the new icon import here
 } from "lucide-react";
 
 const menuItems = [
@@ -27,7 +28,8 @@ const menuItems = [
     ],
   },
   { name: "Offer Letter", path: "/offer", icon: FileText },
-  { name: "Appointment", path: "/appointment", icon: BadgeCheck },
+  { name: "Appointment Letter", path: "/appointment", icon: BadgeCheck },
+  { name: "Increment Letter", path: "/increment", icon: TrendingUp }, // Changed to TrendingUp
   { name: "Salary Slip", path: "/salary", icon: Receipt },
   { name: "Termination Letter", path: "/termination", icon: UserX },
   { name: "Onboarding", path: "/onboarding", icon: UserPlus },
@@ -76,7 +78,7 @@ const Sidebar = () => {
       {/* Logo Section */}
       <div className="px-8 pt-8 pb-10">
         <div className="flex items-center gap-3">
-         
+          
           <h2 className="text-2xl font-black tracking-tight text-white leading-none">
             HR<span className="text-orange-500">MS</span>
           </h2>
