@@ -8,7 +8,7 @@ const DESIGNATION_OPTIONS = [
   "Social Media Manager", "SEO Specialist", "Graphic Designer",
   "Shopify Developer", "Digital Ads Manager", "Accountant",
   "Human Resources Executive", "Relationship Manager", "Telecaller",
-  "Business Development Manager",
+  "Business Development Manager","Branch Manager Sales", "Territory Manager Sales"
 ];
 
 const initialFormData = {

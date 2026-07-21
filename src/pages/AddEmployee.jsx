@@ -20,6 +20,8 @@ const DESIGNATION_OPTIONS = [
   "HR",
   "Relationship Manager",
   "Telecaller",
+  "Branch Manager Sales", 
+  "Territory Manager Sales"
 ];
 
 const GENDER_OPTIONS = ["Male", "Female", "Other"];

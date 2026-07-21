@@ -7,7 +7,8 @@ const DESIGNATION_OPTIONS = [
   "Business Development Manager", "Sales Executive", "Frontend Developer",
   "Full Stack Developer", "Graphic Designer (Intern)", "Software Developer (Intern)",
   "Social Media Manager", "SEO Specialist", "Graphic Designer", "Shopify Developer",
-  "Digital Ads Manager", "Accountant", "Human Resources Executive", "Relationship Manager", "Telecaller",
+  "Digital Ads Manager", "Accountant", "Human Resources Executive", "Relationship Manager", 
+  "Telecaller","Branch Manager Sales", "Territory Manager Sales"
 ];
 
 function CustomDropdown({ name, value, onChange, options, placeholder }) {
