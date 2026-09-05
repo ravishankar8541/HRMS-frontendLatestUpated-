@@ -2,10 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import axios from "axios";
 
 const EmployeeContext = createContext();
-
-// NOTE: Your backend is set to PORT 500. 
-// If it's actually 5000, change it here.
-const API_URL = "https://hrmsbackend.viraladsmedia.com/api"; 
+const API_URL = "http://localhost:5000/api"; 
 
 export const EmployeeProvider = ({ children }) => {
   const [employees, setEmployees] = useState([]);
@@ -24,7 +21,6 @@ export const EmployeeProvider = ({ children }) => {
     }
   }, []);
 
-  // Auth Methods
   const login = async (credentials) => {
     try {
       const res = await axios.post(`${API_URL}/auth/login`, {
@@ -38,7 +34,8 @@ export const EmployeeProvider = ({ children }) => {
       localStorage.setItem("user", JSON.stringify(userData));
       return { success: true };
     } catch (error) {
-      return { success: false, message: error.response?.data?.message || "Login failed" };
+      // Throw so Login page knows it failed and doesn't redirect
+      throw new Error(error.response?.data?.message || "Login failed");
     }
   };
 
@@ -50,7 +47,6 @@ export const EmployeeProvider = ({ children }) => {
     localStorage.removeItem("user");
   };
 
-  // Employee CRUD
   const fetchEmployees = async () => {
     if (!token) return;
     setLoading(true);
@@ -67,10 +63,9 @@ export const EmployeeProvider = ({ children }) => {
   };
 
   const addEmployee = async (data) => {
-    if (!token) throw new Error("Not authenticated");
     try {
       const res = await axios.post(`${API_URL}/employee`, data, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const newEmp = res.data.data || res.data;
       setEmployees((prev) => [newEmp, ...prev]);
@@ -81,10 +76,9 @@ export const EmployeeProvider = ({ children }) => {
   };
 
   const updateEmployee = async (id, data) => {
-    if (!token) throw new Error("Not authenticated");
     try {
       const res = await axios.put(`${API_URL}/employee/${id}`, data, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const updatedEmp = res.data.data || res.data;
       setEmployees((prev) =>
@@ -97,10 +91,9 @@ export const EmployeeProvider = ({ children }) => {
   };
 
   const deleteEmployee = async (id) => {
-    if (!token) throw new Error("Not authenticated");
     try {
       await axios.delete(`${API_URL}/employee/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       setEmployees((prev) => prev.filter((emp) => emp._id !== id));
     } catch (error) {
@@ -108,12 +101,10 @@ export const EmployeeProvider = ({ children }) => {
     }
   };
 
-  // OFFER LETTER METHODS
   const createOfferLetter = async (formData) => {
-    if (!token) throw new Error("Not authenticated");
     try {
       const res = await axios.post(`${API_URL}/offer-letters`, formData, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       return res.data; 
     } catch (error) {
@@ -121,17 +112,12 @@ export const EmployeeProvider = ({ children }) => {
     }
   };
 
-  
-
-  
-
   const sendOfferLetterEmail = async (mongoId, email) => {
-    if (!token) throw new Error("Not authenticated");
     try {
       const res = await axios.post(
         `${API_URL}/offer-letters/${mongoId}/send`, 
         { email },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
       return res.data;
     } catch (error) {
@@ -139,13 +125,10 @@ export const EmployeeProvider = ({ children }) => {
     }
   };
 
-// Appointment Letter Methods (Aligned with your Backend)
   const createAppointmentLetter = async (formData) => {
-    if (!token) throw new Error("Not authenticated");
     try {
-      // Endpoint matches: router.post('/appointment/create', createAppointment);
       const res = await axios.post(`${API_URL}/appointment-letters/appointment/create`, formData, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       return res.data; 
     } catch (error) {
@@ -154,13 +137,11 @@ export const EmployeeProvider = ({ children }) => {
   };
 
   const sendAppointmentEmail = async (mongoId, email) => {
-    if (!token) throw new Error("Not authenticated");
     try {
-      // Endpoint matches: router.post('/appointment/send/:id', sendEmail);
       const res = await axios.post(
         `${API_URL}/appointment-letters/appointment/send/${mongoId}`, 
         { email },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
       return res.data;
     } catch (error) {
@@ -168,16 +149,10 @@ export const EmployeeProvider = ({ children }) => {
     }
   };
 
-  // ────────────────────────────────────────────────────────────────
-  // SALARY SLIP METHODS
-  // ────────────────────────────────────────────────────────────────
-  
   const createSalarySlip = async (formData) => {
-    if (!token) throw new Error("Not authenticated");
     try {
-      // Endpoint matches: router.post('/', createSalarySlip);
       const res = await axios.post(`${API_URL}/salarySlip`, formData, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       return res.data;
     } catch (error) {
@@ -186,30 +161,22 @@ export const EmployeeProvider = ({ children }) => {
   };
 
   const sendSalarySlipEmail = async (mongoId) => {
-    if (!token) throw new Error("Not authenticated");
     try {
-      // Endpoint matches: router.post('salarySlip/:id/send', sendSalaryEmail);
       const res = await axios.post(
         `${API_URL}/salarySlip/${mongoId}/send`, 
-        {}, // Body is empty as ID is in params
-        { headers: { Authorization: `Bearer ${token}` } }
+        {}, 
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
       return res.data;
     } catch (error) {
       throw new Error(error.response?.data?.message || "Failed to send salary email");
     }
   };
-   
-  // ────────────────────────────────────────────────────────────────
-  // TERMINATION LETTER METHODS
-  // ────────────────────────────────────────────────────────────────
 
   const createTerminationRecord = async (formData) => {
-    if (!token) throw new Error("Not authenticated");
     try {
-      // Matches backend: router.post('/api/termination-letters', createTermination);
       const res = await axios.post(`${API_URL}/termination-letters`, formData, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       return res.data; 
     } catch (error) {
@@ -218,29 +185,22 @@ export const EmployeeProvider = ({ children }) => {
   };
 
   const sendTerminationEmail = async (mongoId, email) => {
-    if (!token) throw new Error("Not authenticated");
     try {
-      // Matches backend: router.post('/api/termination-letters/:id/send', sendEmail);
       const res = await axios.post(
         `${API_URL}/termination-letters/${mongoId}/send`, 
         { email },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
       return res.data;
     } catch (error) {
       throw new Error(error.response?.data?.message || "Failed to send termination email");
     }
   };
-  // ────────────────────────────────────────────────────────────────
-  // FULL & FINAL (FNF) METHODS
-  // ────────────────────────────────────────────────────────────────
 
   const createFNFRecord = async (formData) => {
-    if (!token) throw new Error("Not authenticated");
     try {
-      // Matches backend: router.post('/api/fnf', createFNFRecord);
       const res = await axios.post(`${API_URL}/fnf`, formData, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       return res.data;
     } catch (error) {
@@ -249,13 +209,11 @@ export const EmployeeProvider = ({ children }) => {
   };
 
   const sendFNFEmail = async (mongoId, email) => {
-    if (!token) throw new Error("Not authenticated");
     try {
-      // Matches backend: router.post('/api/fnf/:id/send', sendEmail);
       const res = await axios.post(
         `${API_URL}/fnf/${mongoId}/send`,
         { email },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
       return res.data;
     } catch (error) {
@@ -263,17 +221,8 @@ export const EmployeeProvider = ({ children }) => {
     }
   };
 
-
-  // ────────────────────────────────────────────────────────────────
-  // ONBOARDING METHODS (Fixed Syntax and Logic)
-  // ────────────────────────────────────────────────────────────────
-  
   const submitOnboarding = async (employeeId, formData) => {
-    if (!token) throw new Error("Not authenticated");
-    
     const data = new FormData();
-    
-    // Append fields to FormData
     Object.keys(formData).forEach((key) => {
       if (formData[key] !== null && formData[key] !== undefined) {
         data.append(key, formData[key]);
@@ -283,12 +232,10 @@ export const EmployeeProvider = ({ children }) => {
     try {
       const res = await axios.post(`${API_URL}/onboarding/submit/${employeeId}`, data, {
         headers: { 
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           "Content-Type": "multipart/form-data" 
         },
       });
-      
-      // Refresh list to show updated onboarding status
       fetchEmployees();
       return res.data;
     } catch (error) {
