@@ -4,7 +4,7 @@ import { useEmployee } from "../context/EmployeeContext";
 import Sidebar from "../components/Sidebar";
 
 const DESIGNATION_OPTIONS = [
-  "Sales Executive", "Frontend Developer", "Full Stack Developer",
+  "Sales Executive", "SEO Executive", "Frontend Developer", "Full Stack Developer",
   "Graphic Designer (Intern)", "Software Developer (Intern)",
   "Social Media Manager", "SEO Specialist", "Graphic Designer",
   "Shopify Developer", "Digital Ads Manager", "Accountant",
