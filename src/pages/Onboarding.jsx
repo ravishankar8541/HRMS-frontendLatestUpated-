@@ -2,16 +2,20 @@ import React, { useState, useRef, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { useEmployee } from "../context/EmployeeContext";
+import { getServerBase } from "../utils/serverBase";
 
 const Onboarding = () => {
     const printRef = useRef();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const employeeId = searchParams.get("employeeId");
+    const employeeIdParam = searchParams.get("employeeId");
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState(employeeIdParam || "");
 
     const { employees, submitOnboarding } = useEmployee();
+    const employeeId = selectedEmployeeId || employeeIdParam;
 
     const [formData, setFormData] = useState({
+        empId: "",
         name: "",
         designation: "",
         department: "",
@@ -41,16 +45,22 @@ const Onboarding = () => {
         if (photoPath.startsWith("http")) return photoPath;
         const normalized = photoPath.replace(/\\/g, "/");
         const filename = normalized.split("/").pop() || "";
-        const base = import.meta.env.VITE_API_URL || "http://localhost:5000";
-        return `${base}/uploads/${filename}`;
+        return `${getServerBase()}/uploads/${filename}`;
     };
 
     useEffect(() => {
+        if (employeeIdParam) {
+            setSelectedEmployeeId(employeeIdParam);
+        }
+    }, [employeeIdParam]);
+
+    useEffect(() => {
         if (employeeId && employees.length > 0) {
-            const emp = employees.find((e) => e._id === employeeId);
+            const emp = employees.find((e) => String(e._id) === String(employeeId));
             if (emp) {
                 setFormData((prev) => ({
                     ...prev,
+                    empId: emp.empId || `VAM-${String(emp._id).slice(-4).toUpperCase()}`,
                     name: emp.name || "",
                     designation: emp.designation || "",
                     department: emp.department || "",
@@ -126,7 +136,11 @@ const Onboarding = () => {
 
         setIsSubmitting(true);
         try {
-            await submitOnboarding(employeeId, formData);
+            const result = await submitOnboarding(employeeId, formData);
+            const savedEmp = result?.data || result?.employee;
+            if (savedEmp?.empId) {
+                setFormData((prev) => ({ ...prev, empId: savedEmp.empId }));
+            }
             alert("Onboarding data saved to database successfully!");
             setTimeout(() => {
                 window.print();
@@ -183,7 +197,33 @@ const Onboarding = () => {
                             Employee Onboarding
                         </h1>
 
+                        <div className="mb-6">
+                            <label className="block text-sm font-medium mb-1">Select Employee <span className="text-red-500">*</span></label>
+                            <select
+                                value={selectedEmployeeId}
+                                onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                                className={inputClass}
+                            >
+                                <option value="">— Choose employee —</option>
+                                {employees.map((emp) => (
+                                    <option key={emp._id} value={emp._id}>
+                                        {emp.name} ({emp.email}) — {emp.onboardingStatus || "Pending"}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Employee ID (VAM)</label>
+                                <input
+                                    name="empId"
+                                    value={formData.empId || ""}
+                                    readOnly
+                                    className={`${inputClass} bg-slate-50 text-slate-600`}
+                                    placeholder="Assigned after save if new"
+                                />
+                            </div>
                             {[
                                 { name: "name", label: "Full Name", type: "text", required: true },
                                 { name: "designation", label: "Designation", type: "text", required: true },
@@ -321,6 +361,7 @@ const Onboarding = () => {
                                         <tr>
                                             <td style={{ padding: "10px 0", width: "75%" }}>
                                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                                                    <p><strong>Employee ID:</strong> {formData.empId || "-"}</p>
                                                     <p><strong>Full Name:</strong> {formData.name || "-"}</p>
                                                     <p><strong>Designation:</strong> {formData.designation || "-"}</p>
                                                     <p><strong>Department:</strong> {formData.department || "-"}</p>

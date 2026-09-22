@@ -9,6 +9,7 @@ const DESIGNATION_OPTIONS = [
   "Full Stack Developer", "Graphic Designer (Intern)", "Software Developer (Intern)",
   "Social Media Manager", "SEO Specialist", "Graphic Designer", "Shopify Developer",
   "Digital Ads Manager", "Accountant", "Human Resources Executive", "Relationship Manager", "Telecaller",
+  "Branch Manager Sales", "Territory Manager Sales"
 ];
 
 const MONTH_OPTIONS = [
@@ -16,54 +17,15 @@ const MONTH_OPTIONS = [
   "Jul/2026", "Aug/2026", "Sep/2026", "Oct/2026", "Nov/2026", "Dec/2026"
 ];
 
-// Reusable Custom Dropdown
-function CustomDropdown({ name, value, onChange, options, placeholder }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const wrapperRef = useRef(null);
+const formatINR = (val) => {
+  const num = Math.round((Number(val) || 0) * 100) / 100;
+  return num.toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative w-full" ref={wrapperRef}>
-      <button
-        type="button"
-        className="w-full px-4 py-2 text-left text-sm rounded-md border border-gray-300 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all flex items-center justify-between"
-        onClick={() => setIsOpen((prev) => !prev)}
-      >
-        <span className={value ? "text-gray-900" : "text-gray-400"}>{value || placeholder}</span>
-        <svg className={`w-5 h-5 text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {isOpen && (
-        <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
-          {options.map((option) => (
-            <li
-              key={option}
-              className={`px-4 py-2.5 text-sm cursor-pointer transition-colors ${value === option ? "bg-orange-100 text-orange-800 font-medium" : "hover:bg-orange-50 hover:text-orange-700"}`}
-              onClick={() => {
-                onChange({ target: { name, value: option } });
-                setIsOpen(false);
-              }}
-            >
-              {option}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-const SalarySlip = () => {
+export default function SalarySlip() {
   const { employees, createSalarySlip, sendSalarySlipEmail } = useEmployee();
   const location = useLocation();
   const printRef = useRef(null);
@@ -79,27 +41,27 @@ const SalarySlip = () => {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const inputClass = "block w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-orange-500/20 outline-none transition-all shadow-sm";
+  const inputClass = "block w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-orange-500/20 outline-none transition-all shadow-sm bg-white";
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const employeeId = params.get("employeeId");
 
     if (employeeId && employees && employees.length > 0) {
-      const emp = employees.find((e) => e._id === employeeId);
+      const emp = employees.find((e) => String(e._id) === String(employeeId));
       if (emp) {
         setData((prev) => ({
           ...prev,
           empId: emp.empId || `VAM-${emp._id.slice(-4).toUpperCase()}`,
           name: emp.name || "",
           email: emp.email || "",
-          phone: emp.phoneNumber || "",           // ← Fix 1: use correct field
+          phone: emp.phoneNumber || "",
           designation: emp.designation || "",
           doj: emp.dateOfJoining ? emp.dateOfJoining.split("T")[0] : "",
           pan: emp.panNumber || "",
           aadhar: emp.adharNumber || "",
-          accNo: emp.accountNumber || emp.bankAccountNo || "",
-          ifsc: emp.ifscCode || emp.ifsc || "",
+          accNo: emp.accountNumber || "",
+          ifsc: emp.ifscCode || "",
           basic: emp.salary || "",
         }));
       }
@@ -107,13 +69,14 @@ const SalarySlip = () => {
   }, [location.search, employees]);
 
   const totalEarnings = Number(data.basic || 0) + Number(data.allowance || 0) + Number(data.bonus || 0);
-  const leaveDeduction = (totalEarnings / (Number(data.nod) || 30)) * Number(data.totalLeaveDays || 0);
-  const totalDeductions = Number(data.pf || 0) + leaveDeduction + Number(data.otherDeduction || 0);
-  const netSalary = totalEarnings - totalDeductions;
+  const rawLop = (totalEarnings / (Number(data.nod) || 30)) * Number(data.totalLeaveDays || 0);
+  const leaveDeduction = Math.round(rawLop * 100) / 100;
+  const totalDeductions = Math.round((Number(data.pf || 0) + leaveDeduction + Number(data.otherDeduction || 0)) * 100) / 100;
+  const netSalary = Math.round((totalEarnings - totalDeductions) * 100) / 100;
 
   const generatePrint = useReactToPrint({
     contentRef: printRef,
-    documentTitle: `Payslip_${data.name || "Employee"}_${data.month.replace("/", "-")}`,
+    documentTitle: `Payslip_${data.name || "Employee"}_${(data.month || "period").replace("/", "-")}`,
   });
 
   const handleChange = (e) => setData({ ...data, [e.target.name]: e.target.value });
@@ -140,22 +103,22 @@ const SalarySlip = () => {
         phone: data.phone,
         nod: Number(data.nod) || 30,
         totalLeaveDays: Number(data.totalLeaveDays) || 0,
+        allowance: Number(data.allowance) || 0,
+        bonus: Number(data.bonus) || 0,
+        pf: Number(data.pf) || 0,
+        otherDeduction: Number(data.otherDeduction) || 0,
       };
 
       const createRes = await createSalarySlip(salaryPayload);
-    //  const recordId = createRes?._id || createRes?.data?._id;
-      const recordId = createRes?.data?._id;
+      const recordId = createRes?.data?._id || createRes?._id;
 
-      if (!recordId) {
-        throw new Error("Record created but no ID returned.");
-      }
+      if (!recordId) throw new Error("Record created but ID not received.");
 
       await sendSalarySlipEmail(recordId);
-      alert(`Success! Payslip sent to ${data.email}`);
+      alert(`Success! Payslip sent successfully to ${data.email}`);
       setShowEmailModal(false);
     } catch (error) {
-      const backendMessage = error.response?.data?.message || error.message;
-      alert(`Error: ${backendMessage}`);
+      alert(`Error: ${error.response?.data?.message || error.message}`);
     } finally {
       setLoading(false);
     }
@@ -167,22 +130,24 @@ const SalarySlip = () => {
 
       <main className="flex-1 p-8">
         <div className="max-w-4xl mx-auto">
-
+          {/* Form Controls */}
           <div className="no-print bg-white rounded-xl shadow-md p-8 border border-slate-200 mb-10">
-            <h1 className="text-2xl font-bold mb-6 text-gray-800 border-l-4 border-orange-600 pl-4 uppercase">Payroll Management</h1>
+            <h1 className="text-2xl font-bold mb-6 text-gray-800 border-l-4 border-orange-600 pl-4 uppercase tracking-wide">
+              Generate Salary Payslip
+            </h1>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700">Full Name</label>
-                <input name="name" value={data.name} onChange={handleChange} className={inputClass} />
+                <input name="name" value={data.name} onChange={handleChange} className={inputClass} required />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700">Work Email</label>
-                <input name="email" value={data.email} onChange={handleChange} className={inputClass} />
+                <input name="email" value={data.email} onChange={handleChange} className={inputClass} required />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700">Phone Number</label>
-                <input name="phone" value={data.phone} onChange={handleChange} className={inputClass} placeholder="e.g. +91 98765 43210" />
+                <input name="phone" value={data.phone} onChange={handleChange} className={inputClass} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700">Employee ID</label>
@@ -190,7 +155,13 @@ const SalarySlip = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700">Designation</label>
-                <CustomDropdown name="designation" value={data.designation} onChange={handleChange} options={DESIGNATION_OPTIONS} placeholder="Select Role" />
+                <select name="designation" value={data.designation} onChange={handleChange} className={inputClass}>
+                  <option value="">Select Role</option>
+                  {DESIGNATION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {data.designation && !DESIGNATION_OPTIONS.includes(data.designation) && (
+                    <option value={data.designation}>{data.designation}</option>
+                  )}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700">Joining Date</label>
@@ -201,7 +172,7 @@ const SalarySlip = () => {
                 <input name="pan" value={data.pan} onChange={handleChange} className={inputClass} />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700">Aadhar Number</label>
+                <label className="block text-sm font-medium mb-1 text-gray-700">Aadhaar Number</label>
                 <input name="aadhar" value={data.aadhar} onChange={handleChange} className={inputClass} />
               </div>
               <div>
@@ -210,15 +181,18 @@ const SalarySlip = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700">IFSC Code</label>
-                <input name="ifsc" value={data.ifsc} onChange={handleChange} className={inputClass} placeholder="e.g. SBIN0001234" />
+                <input name="ifsc" value={data.ifsc} onChange={handleChange} className={inputClass} />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700">Salary Month</label>
-                <CustomDropdown name="month" value={data.month} onChange={handleChange} options={MONTH_OPTIONS} placeholder="Select Month" />
+                <label className="block text-sm font-medium mb-1 text-gray-700">Salary Month *</label>
+                <select name="month" value={data.month} onChange={handleChange} className={inputClass} required>
+                  <option value="">Select Month</option>
+                  {MONTH_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700">Basic Salary (₹)</label>
-                <input name="basic" type="number" value={data.basic} onChange={handleChange} className={inputClass} />
+                <label className="block text-sm font-medium mb-1 text-gray-700">Basic Salary (₹) *</label>
+                <input name="basic" type="number" value={data.basic} onChange={handleChange} className={inputClass} required />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700">LOP Days</label>
@@ -236,204 +210,198 @@ const SalarySlip = () => {
             </div>
           </div>
 
-          {/* Printable Payslip */}
+          {/* Professional White Background Preview Area */}
           <div
             ref={printRef}
-            className="print:m-0 bg-white mb-20 overflow-hidden"
+            className="print:m-0 bg-white mb-20 shadow-xl mx-auto border border-gray-300"
             style={{
               width: "210mm",
-              minHeight: "297mm",
-              padding: "15mm 12mm",
+              padding: "10mm 14mm 8mm 14mm",
               boxSizing: "border-box",
-              display: "flex",
-              flexDirection: "column",
-              fontFamily: "'Times New Roman', Times, serif",
-              fontSize: "13px",
-              color: "#000",
-              backgroundColor: "white",
+              fontFamily: "Arial, Helvetica, sans-serif",
+              color: "#000000",
+              backgroundColor: "#ffffff",
+              fontSize: "10px"
             }}
           >
-            {/* Header */}
+            {/* Header: Company Logo /blackLogo.png (65px) */}
             <div style={{
-              borderBottom: "3px solid #000",
-              paddingBottom: "12px",
-              marginBottom: "18px",
+              borderBottom: "2px solid #f27022",
+              paddingBottom: "8px",
+              marginBottom: "12px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center"
             }}>
               <div>
-                <h1 style={{
-                  fontSize: "22px",
-                  fontWeight: "bold",
-                  margin: 0,
-                  letterSpacing: "1px"
-                }}>
-                  VIRAL ADS MEDIA
-                </h1>
-                <p style={{
-                  fontSize: "11px",
-                  margin: "4px 0 0 0",
-                  color: "#333"
-                }}>
-                  B-27, Budh Vihar Phase 1, New Delhi-110086
-                </p>
+                <img src="/blackLogo.png" alt="Viral Ads Media" style={{ height: "65px", width: "auto", objectFit: "contain" }} />
               </div>
-              <div style={{ textAlign: "right" }}>
-                <img
-                  src="/blackLogo.png"
-                  alt="Logo"
-                  style={{ height: "90px", marginBottom: "8px" }}
-                />
+              <div style={{ textAlign: "right", lineHeight: "1.45", fontSize: "9.5px", color: "#333333" }}>
+                <div style={{ fontSize: "15px", fontWeight: "bold", color: "#000000", letterSpacing: "0.5px" }}>VIRAL ADS MEDIA</div>
+                <div><strong>Ref:</strong> VAM/PAY/{data.empId || 'EMP'}/{(data.month || '').replace('/', '-')}</div>
+                <div><strong>Issue Date:</strong> {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
               </div>
             </div>
 
-            {/* Title */}
-            <div style={{ textAlign: "center", marginBottom: "20px" }}>
-              <h2 style={{
-                fontSize: "18px",
-                fontWeight: "bold",
-                textDecoration: "underline",
-                textTransform: "uppercase",
-                letterSpacing: "1.5px",
-                margin: "0 0 6px 0"
-              }}>
+            {/* Document Title */}
+            <div style={{ textAlign: "center", marginBottom: "12px" }}>
+              <h2 style={{ fontSize: "15px", fontWeight: "bold", margin: "0", letterSpacing: "1px", textTransform: "uppercase" }}>
                 Salary Payslip
               </h2>
-              <p style={{ fontSize: "14px", fontWeight: "bold" }}>
+              <div style={{ fontSize: "11px", fontWeight: "bold", color: "#f27022", marginTop: "2px" }}>
                 For the month of {data.month || "—"}
-              </p>
-            </div>
-
-            {/* Employee Details */}
-            <div style={{
-              marginBottom: "22px",
-              border: "1px solid #444",
-              padding: "12px",
-              backgroundColor: "#f9f9f9"
-            }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px 16px", fontSize: "12.5px" }}>
-                <div><strong>Employee Name:</strong> {data.name || "—"}</div>
-                <div><strong>Emp ID:</strong> {data.empId || "—"}</div>
-                <div><strong>Designation:</strong> {data.designation || "—"}</div>
-                <div><strong>DOJ:</strong> {data.doj || "—"}</div>
-                <div><strong>PAN No:</strong> {data.pan || "—"}</div>
-                <div><strong>Aadhaar No:</strong> {data.aadhar || "—"}</div>
-                <div><strong>Bank A/c No:</strong> {data.accNo || "—"}</div>
-                <div><strong>IFSC Code:</strong> {data.ifsc || "—"}</div>
-                <div><strong>Phone:</strong> {data.phone || "—"}</div>
-              </div>
-
-              {/* Attendance */}
-              <div style={{
-                marginTop: "14px",
-                paddingTop: "10px",
-                borderTop: "1px dashed #666",
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: "12.5px"
-              }}>
-                <div><strong>NOD (No. of Days):</strong> {data.nod || "30"}</div>
-                <div><strong>NDP (Days Present):</strong> {Number(data.nod || 30) - Number(data.totalLeaveDays || 0)}</div>
-                <div><strong>LOP Days:</strong> {data.totalLeaveDays || "0"}</div>
               </div>
             </div>
 
-            {/* Earnings & Deductions Table */}
-            <table style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              border: "1.5px solid #000",
-              fontSize: "13px",
-              marginBottom: "20px"
-            }}>
+            {/* Employee Information Table */}
+            <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #000000", marginBottom: "12px", backgroundColor: "#ffffff" }}>
+              <tbody>
+                <tr>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", width: "18%", color: "#374151", fontWeight: "bold" }}>Employee Name:</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", width: "32%", fontWeight: "bold" }}>{data.name || "—"}</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", width: "18%", color: "#374151", fontWeight: "bold" }}>Employee ID:</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", width: "32%", fontWeight: "bold" }}>{data.empId || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", color: "#374151", fontWeight: "bold" }}>Designation:</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>{data.designation || "—"}</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", color: "#374151", fontWeight: "bold" }}>Date of Joining:</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>{data.doj || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", color: "#374151", fontWeight: "bold" }}>PAN Number:</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", textTransform: "uppercase" }}>{data.pan || "—"}</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", color: "#374151", fontWeight: "bold" }}>Aadhaar Number:</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>{data.aadhar || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", color: "#374151", fontWeight: "bold" }}>Bank Account:</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>{data.accNo || "—"}</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", color: "#374151", fontWeight: "bold" }}>IFSC Code:</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", textTransform: "uppercase" }}>{data.ifsc || "—"}</td>
+                </tr>
+                <tr style={{ backgroundColor: "#f9fafb" }}>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", color: "#374151", fontWeight: "bold" }}>Total Days (NOD):</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", fontWeight: "bold" }}>{data.nod || "30"} Days</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", color: "#374151", fontWeight: "bold" }}>Days Present (NDP):</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", fontWeight: "bold" }}>{Number(data.nod || 30) - Number(data.totalLeaveDays || 0)} Days (LOP: {data.totalLeaveDays || "0"} Days)</td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Earnings & Deductions Statement */}
+            <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #000000", marginBottom: "12px", backgroundColor: "#ffffff" }}>
               <thead>
-                <tr style={{ backgroundColor: "#000", color: "#fff" }}>
-                  <th style={{ padding: "8px 10px", textAlign: "left", borderRight: "1px solid #fff" }}>Earnings</th>
-                  <th style={{ padding: "8px 10px", textAlign: "right", width: "120px" }}>Amount (₹)</th>
-                  <th style={{ padding: "8px 10px", textAlign: "left", borderLeft: "2px solid #000", borderRight: "1px solid #fff" }}>Deductions</th>
-                  <th style={{ padding: "8px 10px", textAlign: "right", width: "120px" }}>Amount (₹)</th>
+                <tr style={{ backgroundColor: "#f3f4f6", color: "#000000" }}>
+                  <th style={{ padding: "6px 8px", textAlign: "left", fontSize: "9.5px", border: "1px solid #000000" }}>EARNINGS</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right", fontSize: "9.5px", width: "120px", border: "1px solid #000000" }}>AMOUNT (₹)</th>
+                  <th style={{ padding: "6px 8px", textAlign: "left", fontSize: "9.5px", border: "1px solid #000000" }}>DEDUCTIONS</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right", fontSize: "9.5px", width: "120px", border: "1px solid #000000" }}>AMOUNT (₹)</th>
                 </tr>
               </thead>
               <tbody>
-                <tr style={{ borderBottom: "1px solid #aaa" }}>
-                  <td style={{ padding: "8px 10px", borderRight: "1px solid #000" }}>Basic Salary</td>
-                  <td style={{ padding: "8px 10px", textAlign: "right" }}>{Number(data.basic || 0).toLocaleString('en-IN')}</td>
-                  <td style={{ padding: "8px 10px", borderLeft: "2px solid #000" }}>Loss of Pay (LOP)</td>
-                  <td style={{ padding: "8px 10px", textAlign: "right" }}>{leaveDeduction.toLocaleString('en-IN')}</td>
+                <tr>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>Basic Salary</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", textAlign: "right", fontWeight: "bold", fontFamily: "Courier New, monospace" }}>{formatINR(data.basic)}</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>Loss of Pay (LOP)</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", textAlign: "right", fontWeight: "bold", fontFamily: "Courier New, monospace" }}>{formatINR(leaveDeduction)}</td>
                 </tr>
-                <tr style={{ borderBottom: "1px solid #aaa" }}>
-                  <td style={{ padding: "8px 10px", borderRight: "1px solid #000" }}>Allowance</td>
-                  <td style={{ padding: "8px 10px", textAlign: "right" }}>{Number(data.allowance || 0).toLocaleString('en-IN')}</td>
-                  <td style={{ padding: "8px 10px", borderLeft: "2px solid #000" }}>Other Deduction</td>
-                  <td style={{ padding: "8px 10px", textAlign: "right" }}>{Number(data.otherDeduction || 0).toLocaleString('en-IN')}</td>
+                <tr>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>House Rent Allowance (HRA)</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", textAlign: "right", fontWeight: "bold", fontFamily: "Courier New, monospace" }}>{formatINR(data.allowance)}</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>Provident Fund (PF)</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", textAlign: "right", fontWeight: "bold", fontFamily: "Courier New, monospace" }}>{formatINR(data.pf)}</td>
                 </tr>
-                <tr style={{ borderBottom: "1px solid #aaa" }}>
-                  <td style={{ padding: "8px 10px", borderRight: "1px solid #000" }}>Bonus</td>
-                  <td style={{ padding: "8px 10px", textAlign: "right" }}>{Number(data.bonus || 0).toLocaleString('en-IN')}</td>
-                  <td style={{ padding: "8px 10px", borderLeft: "2px solid #000" }}></td>
-                  <td style={{ padding: "8px 10px", textAlign: "right" }}></td>
+                <tr>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>Special Allowance & Conveyance</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", textAlign: "right", fontWeight: "bold", fontFamily: "Courier New, monospace" }}>0.00</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>Tax Deducted at Source (TDS)</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", textAlign: "right", fontWeight: "bold", fontFamily: "Courier New, monospace" }}>0.00</td>
                 </tr>
-                <tr style={{ height: "60px" }}>
-                  <td style={{ borderRight: "1px solid #000" }}></td>
-                  <td style={{ borderRight: "1px solid #000" }}></td>
-                  <td style={{ borderLeft: "2px solid #000" }}></td>
-                  <td></td>
+                <tr>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>Performance Bonus & Incentives</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", textAlign: "right", fontWeight: "bold", fontFamily: "Courier New, monospace" }}>{formatINR(data.bonus)}</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db" }}>Other Deductions</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #d1d5db", textAlign: "right", fontWeight: "bold", fontFamily: "Courier New, monospace" }}>{formatINR(data.otherDeduction)}</td>
+                </tr>
+                <tr style={{ backgroundColor: "#f9fafb", fontWeight: "bold" }}>
+                  <td style={{ padding: "6px 8px", borderTop: "1.5px solid #000000", borderBottom: "1.5px solid #000000" }}>GROSS EARNINGS</td>
+                  <td style={{ padding: "6px 8px", borderTop: "1.5px solid #000000", borderBottom: "1.5px solid #000000", textAlign: "right", fontFamily: "Courier New, monospace" }}>₹ {formatINR(totalEarnings)}</td>
+                  <td style={{ padding: "6px 8px", borderTop: "1.5px solid #000000", borderBottom: "1.5px solid #000000" }}>TOTAL DEDUCTIONS</td>
+                  <td style={{ padding: "6px 8px", borderTop: "1.5px solid #000000", borderBottom: "1.5px solid #000000", textAlign: "right", fontFamily: "Courier New, monospace" }}>₹ {formatINR(totalDeductions)}</td>
                 </tr>
               </tbody>
-              <tfoot style={{ backgroundColor: "#f0f0f0", fontWeight: "bold" }}>
-                <tr>
-                  <td style={{ padding: "10px", borderRight: "1px solid #000", textAlign: "left" }}>Gross Earnings</td>
-                  <td style={{ padding: "10px", textAlign: "right" }}>₹{totalEarnings.toLocaleString('en-IN')}</td>
-                  <td style={{ padding: "10px", borderLeft: "2px solid #000", textAlign: "left" }}>Total Deductions</td>
-                  <td style={{ padding: "10px", textAlign: "right" }}>₹{totalDeductions.toLocaleString('en-IN')}</td>
-                </tr>
-              </tfoot>
             </table>
 
-            {/* Net Pay */}
-            <div style={{ textAlign: "right", marginTop: "auto" }}>
-              <div style={{
-                display: "inline-block",
-                backgroundColor: "#000",
-                color: "#fff",
-                padding: "14px 28px",
-                borderRadius: "4px"
-              }}>
-                <div style={{ fontSize: "15px", fontWeight: "bold" }}>
-                  Net Pay: ₹ {netSalary.toLocaleString('en-IN')}
-                </div>
-                <div style={{ fontSize: "11px", marginTop: "6px", opacity: 0.9 }}>
-                  (Rupees {netSalary.toLocaleString('en-IN')} Only)
-                </div>
+            {/* Net Pay Box */}
+            <div style={{
+              width: "100%",
+              border: "1.5px solid #000000",
+              borderLeft: "4px solid #f27022",
+              padding: "8px 12px",
+              marginBottom: "8px",
+              boxSizing: "border-box",
+              backgroundColor: "#ffffff"
+            }}>
+              <div style={{ fontSize: "10px", fontWeight: "bold", color: "#374151", textTransform: "uppercase" }}>
+                Net Take-Home Pay
+              </div>
+              <div style={{ fontSize: "15px", fontWeight: "bold", color: "#000000", marginTop: "1px" }}>
+                ₹ {formatINR(netSalary)}
+              </div>
+              <div style={{ fontSize: "9px", color: "#4b5563", fontStyle: "italic", marginTop: "2px" }}>
+                (Rupees {formatINR(netSalary)} Only)
               </div>
             </div>
 
-            {/* Signatures */}
+            <div style={{ fontSize: "8.5px", color: "#6b7280", fontStyle: "italic", marginTop: "6px" }}>
+              * This is a computer-generated salary slip and does not require a physical signature.
+            </div>
+
+            {/* Digital HR Signature: Uses /hrSignature.png with Increased Size (58px) */}
+            <div style={{ marginTop: "16px", width: "100%", textAlign: "right" }}>
+              <div style={{ display: "inline-block", textAlign: "center", width: "200px" }}>
+                <div style={{ fontWeight: "bold", fontSize: "10px", color: "#000000", marginBottom: "2px" }}>For Viral Ads Media</div>
+                <div style={{ height: "60px", display: "flex", alignItems: "center", justifyContent: "center", margin: "2px auto" }}>
+                  <img
+                    src="/hrSignature.png"
+                    alt="HR Signature"
+                    style={{ height: "58px", maxWidth: "180px", objectFit: "contain", display: "block", margin: "0 auto" }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
+                    }}
+                  />
+                  <span style={{ display: "none", fontFamily: "'Brush Script MT', 'Segoe Script', cursive", fontSize: "22px", color: "#1d4ed8" }}>
+                    HR Signature
+                  </span>
+                </div>
+                <div style={{ borderTop: "1px solid #000000", marginTop: "2px", marginBottom: "3px" }}></div>
+                <div style={{ fontWeight: "bold", fontSize: "9.5px", color: "#000000" }}>HR Department</div>
+                <div style={{ fontSize: "8.5px", color: "#4b5563" }}>Viral Ads Media</div>
+              </div>
+            </div>
+
+            {/* Clean Footer */}
             <div style={{
-              marginTop: "50px",
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: "12px"
+              marginTop: "20px",
+              borderTop: "1px solid #e5e7eb",
+              paddingTop: "6px",
+              textAlign: "center",
+              fontSize: "8.5px",
+              color: "#4b5563"
             }}>
-              <div style={{ textAlign: "center", width: "45%" }}>
-                <div style={{ borderBottom: "1px solid #000", height: "30px", marginBottom: "6px" }}></div>
-                <div>Employee Signature</div>
-              </div>
-              <div style={{ textAlign: "center", width: "45%" }}>
-                <div style={{ borderBottom: "1px solid #000", height: "30px", marginBottom: "6px" }}></div>
-                <div>Authorised Signatory</div>
-                <div style={{ marginTop: "4px", fontWeight: "bold" }}>For Viral Ads Media</div>
-              </div>
+              <strong>Viral Ads Media</strong> | B-27, Budh Vihar Phase 1, New Delhi - 110086 | Tel: +91 93544 91934 | hr@viraladsmedia.com
             </div>
           </div>
         </div>
       </main>
 
+      {/* Email Modal */}
       {showEmailModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 no-print">
           <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-sm">
-            <h3 className="text-lg font-bold mb-4">Recipient Email</h3>
+            <h3 className="text-lg font-bold mb-4">Send Payslip via Email</h3>
             <input
               type="email"
               value={data.email}
@@ -451,6 +419,4 @@ const SalarySlip = () => {
       )}
     </div>
   );
-};
-
-export default SalarySlip;
+}

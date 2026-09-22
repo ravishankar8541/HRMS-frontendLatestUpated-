@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useReactToPrint } from "react-to-print";
 import Sidebar from "../components/Sidebar";
+import { useEmployee } from "../context/EmployeeContext";
 
 const DESIGNATION_OPTIONS = [
   "Sales Executive", "Frontend Developer", "Full Stack Developer",
@@ -8,7 +10,7 @@ const DESIGNATION_OPTIONS = [
   "Social Media Manager", "SEO Specialist", "Graphic Designer",
   "Shopify Developer", "Digital Ads Manager", "Accountant",
   "Human Resources Executive", "Relationship Manager", "Telecaller",
-  "Business Development Manager","Branch Manager Sales", "Territory Manager Sales"
+  "Business Development Manager", "Branch Manager Sales", "Territory Manager Sales"
 ];
 
 const initialFormData = {
@@ -29,59 +31,45 @@ const initialFormData = {
   reasonForIncrement: "Based on performance and contribution to the organization"
 };
 
-function CustomDropdown({ name, value, onChange, options, placeholder }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const wrapperRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (wrapperRef.current && wrapperRef.current.contains && !wrapperRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative w-full" ref={wrapperRef}>
-      <button
-        type="button"
-        className="w-full px-4 py-2 text-left text-sm rounded-md border border-gray-300 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all flex items-center justify-between"
-        onClick={() => setIsOpen((prev) => !prev)}
-      >
-        <span className={value ? "text-gray-900" : "text-gray-400"}>{value || placeholder}</span>
-        <svg className={`w-5 h-5 text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {isOpen && (
-        <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
-          {options.map((option) => (
-            <li
-              key={option}
-              className={`px-4 py-2.5 text-sm cursor-pointer transition-colors ${value === option ? "bg-orange-100 text-orange-800 font-medium" : "hover:bg-orange-50 hover:text-orange-700"}`}
-              onClick={() => {
-                onChange({ target: { name, value: option } });
-                setIsOpen(false);
-              }}
-            >
-              {option}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 export default function IncrementLetter() {
+  const { employees, createIncrementLetter, sendIncrementLetterEmail } = useEmployee();
+  const location = useLocation();
+  
   const [formData, setFormData] = useState(initialFormData);
   const [preview, setPreview] = useState(false);
   const [incrementId, setIncrementId] = useState("");
+  const [savedDbId, setSavedDbId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState("");
 
   const printRef = useRef(null);
+
+  // Auto-fill employee data from URL query params
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const empIdParam = params.get("employeeId");
+
+    if (empIdParam && employees && employees.length > 0) {
+      const emp = employees.find((e) => String(e._id) === String(empIdParam));
+      if (emp) {
+        setFormData((prev) => ({
+          ...prev,
+          employeeName: emp.name || "",
+          fathersName: emp.fatherName || "",
+          address: emp.address || "",
+          position: emp.designation || "",
+          currentSalary: emp.salary || "",
+          phoneNumber: emp.phoneNumber || "",
+          emailId: emp.email || "",
+          employeeId: emp.empId || `VAM-${emp._id.slice(-4).toUpperCase()}`,
+          department: emp.department || "Sales",
+          effectiveDate: new Date().toISOString().split("T")[0],
+          hrName: "HR Manager",
+        }));
+      }
+    }
+  }, [location.search, employees]);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -91,7 +79,7 @@ export default function IncrementLetter() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    
+
     if (name === "currentSalary" || name === "newSalary") {
       const current = name === "currentSalary" ? parseFloat(value) : parseFloat(formData.currentSalary);
       const newSal = name === "newSalary" ? parseFloat(value) : parseFloat(formData.newSalary);
@@ -105,38 +93,50 @@ export default function IncrementLetter() {
     }
   };
 
-  const handleGenerate = (e) => {
+  const handleGenerate = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
-    setTimeout(() => {
-      const id = `INC-${Date.now().toString().slice(-6)}`;
-      setIncrementId(id);
+    try {
+      const res = await createIncrementLetter(formData);
+      setIncrementId(res.incrementId);
+      setSavedDbId(res.data._id);
+      setRecipientEmail(formData.emailId);
       setPreview(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      alert(err.message || "Failed to save Increment Letter");
+    } finally {
       setLoading(false);
-    }, 500);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!recipientEmail) return alert("Please specify an email address.");
+    try {
+      setLoading(true);
+      await sendIncrementLetterEmail(savedDbId, recipientEmail);
+      alert(`Increment Letter successfully dispatched to ${recipientEmail}!`);
+      setShowEmailModal(false);
+    } catch (err) {
+      alert("Failed to send email: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const inputClass = "block w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-orange-500/20 outline-none transition-all shadow-sm";
 
   return (
     <div className="flex min-h-screen bg-slate-100">
-      <style>{`
-        @media print {
-          @page { size: A4; margin: 0mm; }
-          body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; }
-          .no-print { display: none !important; }
-        }
-      `}</style>
-
       <div className="no-print"><Sidebar /></div>
 
       <main className="flex-1 p-8 print:p-0">
         <div className="max-w-4xl mx-auto">
           {!preview ? (
-            <div className="bg-white rounded-xl shadow-md p-8 no-print">
-              <h1 className="text-2xl font-bold mb-6 text-gray-800">Generate Increment Letter</h1>
+            <div className="bg-white rounded-xl shadow-md p-8 no-print border border-slate-200">
+              <h1 className="text-2xl font-bold mb-6 text-gray-800 border-l-4 border-orange-600 pl-4">
+                Generate Increment Letter
+              </h1>
               <form onSubmit={handleGenerate} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium mb-1">Employee Name *</label>
@@ -156,19 +156,25 @@ export default function IncrementLetter() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Email Id *</label>
-                  <input name="emailId" value={formData.emailId} onChange={handleChange} className={inputClass} required />
+                  <input name="emailId" type="email" value={formData.emailId} onChange={handleChange} className={inputClass} required />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Employee ID</label>
-                  <input name="employeeId" value={formData.employeeId} onChange={handleChange} className={inputClass} placeholder="e.g., VAM-2024-001" />
+                  <input name="employeeId" value={formData.employeeId} onChange={handleChange} className={inputClass} placeholder="e.g., VAM-03B7" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Department</label>
-                  <input name="department" value={formData.department} onChange={handleChange} className={inputClass} placeholder="e.g., Technology, Sales" />
+                  <input name="department" value={formData.department} onChange={handleChange} className={inputClass} placeholder="e.g., Sales" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Designation *</label>
-                  <CustomDropdown name="position" value={formData.position} onChange={handleChange} options={DESIGNATION_OPTIONS} placeholder="Select Designation" />
+                  <select name="position" value={formData.position} onChange={handleChange} className={inputClass} required>
+                    <option value="">Select Designation</option>
+                    {DESIGNATION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                    {formData.position && !DESIGNATION_OPTIONS.includes(formData.position) && (
+                      <option value={formData.position}>{formData.position}</option>
+                    )}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Current Salary (INR) *</label>
@@ -192,247 +198,164 @@ export default function IncrementLetter() {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium mb-1">Performance Remarks</label>
-                  <textarea 
-                    name="performanceRemarks" 
-                    value={formData.performanceRemarks} 
-                    onChange={handleChange} 
-                    className={`${inputClass} min-h-[80px]`} 
-                    placeholder="Brief remarks about employee's performance"
-                  />
+                  <textarea name="performanceRemarks" value={formData.performanceRemarks} onChange={handleChange} className={inputClass} rows="2" />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-1">Reason for Increment</label>
-                  <input 
-                    name="reasonForIncrement" 
-                    value={formData.reasonForIncrement} 
-                    onChange={handleChange} 
-                    className={inputClass} 
-                    placeholder="Reason for salary increment"
-                  />
-                </div>
-                <button type="submit" disabled={loading} className="md:col-span-2 bg-orange-600 text-white py-3 rounded-lg font-bold hover:bg-orange-700 transition-all">
-                  {loading ? "Processing..." : "Generate Preview"}
+                <button type="submit" disabled={loading} className="md:col-span-2 bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-lg transition-all shadow-md">
+                  {loading ? "Saving to Database..." : "Generate Preview & Save"}
                 </button>
               </form>
             </div>
           ) : (
-            <div className="space-y-8">
-              <div
-                ref={printRef}
-                className="bg-white mx-auto shadow-2xl print:shadow-none"
+            <div className="space-y-6">
+              {/* Document Printable Area */}
+              <div 
+                ref={printRef} 
+                className="bg-white p-12 shadow-2xl mx-auto rounded-lg text-slate-900 border border-slate-200"
                 style={{
                   width: "210mm",
-                  height: "297mm",
-                  padding: "15mm 18mm",
-                  fontFamily: "'Times New Roman', Times, serif",
-                  color: "#1a1a1a",
-                  lineHeight: "1.4",
-                  fontSize: "13px",
+                  minHeight: "297mm",
                   boxSizing: "border-box",
                   position: "relative",
-                  overflow: "hidden",
-                  display: "flex",
-                  flexDirection: "column"
+                  fontFamily: "'Times New Roman', Times, serif"
                 }}
               >
-                {/* WATERMARK START */}
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%) rotate(-35deg) scale(1.8)",
-                    pointerEvents: "none",
-                    userSelect: "none",
-                    zIndex: 0,
-                    width: "100%",
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center"
-                  }}
-                >
-                  <img
-                    src="/blackLogo.png"
-                    alt="Watermark Logo"
-                    style={{
-                      width: "400px",
-                      height: "auto",
-                      opacity: "0.12"
-                    }}
-                  />
-                </div>
-                {/* WATERMARK END */}
-
-                {/* Header - Reduced top margin */}
-                <div style={{ borderBottom: "2px solid #f27022", paddingBottom: "8px", marginBottom: "15px", marginTop: "-25px" }}>
-                  <table style={{ width: "100%" }}>
-                    <tbody>
-                      <tr>
-                        <td style={{ width: "60%" }}>
-                          <img src="/blackLogo.png" alt="Logo" style={{ width: "150px", height: "auto" }} />
-                        </td>
-                        <td style={{ textAlign: "right", fontSize: "11px", color: "#444", verticalAlign: "middle" }}>
-                          <strong>Ref No:</strong> {incrementId}<br />
-                          <strong>Date:</strong> {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                {/* Header */}
+                <div className="border-b-2 border-orange-500 pb-3 mb-6 flex justify-between items-center">
+                  <img src="/blackLogo.png" alt="Logo" className="w-40 h-auto" />
+                  <div className="text-right text-xs text-slate-600 leading-relaxed">
+                    <strong>Ref No:</strong> {incrementId}<br />
+                    <strong>Date:</strong> {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
                 </div>
 
-                {/* Address section - Compact */}
-                <div style={{ marginBottom: "12px", fontSize: "12.5px" }}>
+                {/* Recipient Info */}
+                <div className="text-sm mb-5 leading-relaxed">
                   To,<br />
-                  <span style={{ fontWeight: "bold", fontSize: "14px", color: "#000" }}>{formData.employeeName}</span><br />
-                  {formData.address}
-                  <br />
-                  {formData.phoneNumber}
-                  <br />
+                  <strong>{formData.employeeName}</strong><br />
+                  {formData.fathersName && <span>S/O {formData.fathersName}<br /></span>}
+                  {formData.address}<br />
+                  {formData.phoneNumber}<br />
                   {formData.emailId}
                 </div>
 
-                {/* Title */}
-                <div style={{ textAlign: "center", fontSize: "17px", fontWeight: "bold", margin: "12px 0", textTransform: "uppercase", letterSpacing: "1px", color: "#000" }}>
+                <h2 className="text-center font-bold text-lg uppercase my-5 tracking-wide">
                   Letter of Salary Increment
-                </div>
+                </h2>
 
-                {/* Content - Compact */}
-                <div style={{ textAlign: "justify", flex: 1 }}>
-                  <p style={{ marginBottom: "6px" }}>Dear <span style={{ fontWeight: "bold", color: "#000" }}>{formData.employeeName}</span>,</p>
-                  <p style={{ marginBottom: "6px", fontSize: "12.5px" }}>
-                    We are pleased to inform you that based on your performance and contribution to <span style={{ fontWeight: "bold", color: "#000" }}>Viral Ads Media</span>, 
-                    we have decided to revise your salary effective from <span style={{ fontWeight: "bold", color: "#000" }}>
-                    {new Date(formData.effectiveDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>.
+                {/* Letter Body */}
+                <div className="text-sm leading-relaxed space-y-3 text-justify">
+                  <p>Dear <strong>{formData.employeeName}</strong>,</p>
+                  <p>
+                    We are pleased to inform you that based on your performance and contribution to <strong>Viral Ads Media</strong>, your compensation has been revised with effect from <strong>{new Date(formData.effectiveDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.
                   </p>
 
-                  <p style={{ fontWeight: "bold", margin: "10px 0", fontStyle: "italic", textDecoration: "underline", color: "#333", fontSize: "12.5px" }}>
+                  <p className="font-bold">
                     Subject: Salary Increment for the position of {formData.position}
                   </p>
 
-                  <p style={{ fontSize: "12.5px" }}>Your revised compensation details are as follows:</p>
-
-                  {/* Salary Table - More compact */}
-                  <div style={{ margin: "10px 0", padding: "8px 12px", background: "#f9f9f9", borderLeft: "4px solid #f27022" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
-                      <tbody>
-                        <tr>
-                          <td style={{ padding: "4px 6px", width: "35%", fontWeight: "bold" }}>Employee Name</td>
-                          <td style={{ padding: "4px 6px", width: "65%" }}>{formData.employeeName}</td>
-                        </tr>
-                        <tr>
-                          <td style={{ padding: "4px 6px", fontWeight: "bold" }}>Employee ID</td>
-                          <td style={{ padding: "4px 6px" }}>{formData.employeeId || "To be assigned"}</td>
-                        </tr>
-                        <tr>
-                          <td style={{ padding: "4px 6px", fontWeight: "bold" }}>Designation</td>
-                          <td style={{ padding: "4px 6px" }}>{formData.position}</td>
-                        </tr>
-                        <tr>
-                          <td style={{ padding: "4px 6px", fontWeight: "bold" }}>Department</td>
-                          <td style={{ padding: "4px 6px" }}>{formData.department || "As per requirement"}</td>
-                        </tr>
-                        <tr>
-                          <td style={{ padding: "4px 6px", fontWeight: "bold" }}>Current Salary</td>
-                          <td style={{ padding: "4px 6px" }}>₹{Number(formData.currentSalary).toLocaleString('en-IN')}/- per month</td>
-                        </tr>
-                        <tr>
-                          <td style={{ padding: "4px 6px", fontWeight: "bold", color: "#f27022" }}>Revised Salary</td>
-                          <td style={{ padding: "4px 6px", color: "#f27022", fontWeight: "bold" }}>₹{Number(formData.newSalary).toLocaleString('en-IN')}/- per month</td>
-                        </tr>
-                        <tr>
-                          <td style={{ padding: "4px 6px", fontWeight: "bold" }}>Increment Percentage</td>
-                          <td style={{ padding: "4px 6px" }}>{formData.incrementPercentage}%</td>
-                        </tr>
-                        <tr>
-                          <td style={{ padding: "4px 6px", fontWeight: "bold" }}>Effective Date</td>
-                          <td style={{ padding: "4px 6px" }}>{new Date(formData.effectiveDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {formData.performanceRemarks && (
-                    <>
-                      <p style={{ fontWeight: "bold", marginTop: "8px", marginBottom: "2px", fontSize: "12.5px" }}>Performance Remarks:</p>
-                      <p style={{ marginBottom: "6px", fontStyle: "italic", color: "#555", fontSize: "12px" }}>"{formData.performanceRemarks}"</p>
-                    </>
-                  )}
-
-                  <p style={{ fontWeight: "bold", marginTop: "6px", marginBottom: "2px", fontSize: "12.5px" }}>Reason for Increment:</p>
-                  <p style={{ marginBottom: "6px", fontSize: "12px" }}>{formData.reasonForIncrement}</p>
-
-                  <p style={{ margin: "8px 0", fontSize: "12.5px" }}>
-                    This increment is a testament to your dedication and valuable contributions to our organization. We look forward to your continued growth and success with us.
-                  </p>
-
-                  <p style={{ margin: "6px 0", fontStyle: "italic", color: "#555", fontSize: "12px" }}>
-                    Please note that this revised salary will be reflected in your next payroll cycle.
-                  </p>
-                </div>
-
-                {/* Signatures - Reduced margin top */}
-                <div style={{ marginTop: "25px" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <table className="w-full border-collapse my-4 text-xs border border-slate-200">
                     <tbody>
+                      <tr className="border-b border-slate-200">
+                        <td className="w-1/3 bg-slate-50 p-2 font-bold border-r border-slate-200">Employee ID</td>
+                        <td className="p-2">{formData.employeeId || "N/A"}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="bg-slate-50 p-2 font-bold border-r border-slate-200">Designation</td>
+                        <td className="p-2">{formData.position}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="bg-slate-50 p-2 font-bold border-r border-slate-200">Department</td>
+                        <td className="p-2">{formData.department || "Sales"}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="bg-slate-50 p-2 font-bold border-r border-slate-200">Previous Salary</td>
+                        <td className="p-2">Rs. {Number(formData.currentSalary).toLocaleString('en-IN')}/- per month</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="bg-slate-50 p-2 font-bold border-r border-slate-200">Revised Salary</td>
+                        <td className="p-2 text-orange-600 font-bold">Rs. {Number(formData.newSalary).toLocaleString('en-IN')}/- per month</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="bg-slate-50 p-2 font-bold border-r border-slate-200">Increment Percentage</td>
+                        <td className="p-2 font-bold">{formData.incrementPercentage}%</td>
+                      </tr>
                       <tr>
-                        <td style={{ width: "50%", verticalAlign: "bottom" }}>
-                          <p style={{ margin: "0 0 8px 0", fontWeight: "bold", fontSize: "14px" }}>
-                            For Viral Ads Media
-                          </p>
-                          <div style={{ height: "50px" }}></div>
-                          <div style={{ borderTop: "1px solid #000", width: "220px", paddingTop: "4px" }}>
-                            <p style={{ margin: 0, fontWeight: "bold", fontSize: "13px" }}>
-                             
-                            </p>
-                            <p style={{ margin: 0, fontSize: "11px", color: "#666" }}>
-                              Authorized Signatory
-                            </p>
-                          </div>
-                        </td>
-
-                        <td style={{ width: "50%", textAlign: "right", verticalAlign: "bottom" }}>
-                          <p style={{ margin: "0 0 8px 0", fontWeight: "bold", fontSize: "14px" }}>
-                            Accepted & Agreed
-                          </p>
-                          <div style={{ height: "50px" }}></div>
-                          <div style={{ borderTop: "1px solid #000", width: "220px", marginLeft: "auto", paddingTop: "4px" }}>
-                           
-                            <p style={{ margin: 0, fontSize: "11px", color: "#666" }}>
-                              Employee Signature
-                            </p>
-                          </div>
-                        </td>
+                        <td className="bg-slate-50 p-2 font-bold border-r border-slate-200">Effective Date</td>
+                        <td className="p-2">{new Date(formData.effectiveDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
                       </tr>
                     </tbody>
                   </table>
+
+                  {formData.performanceRemarks && (
+                    <p><strong>Performance Remarks:</strong> <em>"{formData.performanceRemarks}"</em></p>
+                  )}
+
+                  <p>
+                    All other terms and conditions of your employment contract remain unchanged. We appreciate your dedication and look forward to your continued contribution to the growth of Viral Ads Media.
+                  </p>
                 </div>
 
-                {/* Footer - Positioned at bottom */}
-                <div style={{ 
-                  marginTop: "auto", 
-                  textAlign: "center", 
-                  fontSize: "10px", 
-                  color: "#777",
-                  paddingTop: "10px",
-                  borderTop: "1px solid #eee"
-                }}>
-                  <strong>Viral Ads Media | Digital Creative Agency</strong><br />
-                  B-27, Budh Vihar Phase 1, New Delhi - 110086 | +91 93544 91934
+                {/* Only Yours Sincerely / Regards */}
+                <div style={{ marginTop: "35px" }}>
+                  <p style={{ margin: "0 0 3px 0", fontSize: "14px" }}>Yours Sincerely,</p>
+                  <p style={{ margin: 0, fontWeight: "bold", fontSize: "14px" }}>For Viral Ads Media</p>
+                </div>
+
+                {/* Bottom Address Footer */}
+                <div 
+                  style={{
+                    position: "absolute",
+                    bottom: "10mm",
+                    left: "15mm",
+                    right: "15mm",
+                    textAlign: "center",
+                    fontSize: "11px",
+                    color: "#666",
+                    borderTop: "1px solid #e2e8f0",
+                    paddingTop: "8px"
+                  }}
+                >
+                  Viral Ads Media | B-27, Budh Vihar Phase 1, New Delhi - 110086 | +91 93544 91934
                 </div>
               </div>
 
-              <div className="flex flex-wrap justify-center gap-4 no-print pb-10">
-                <button onClick={() => setPreview(false)} className="bg-gray-200 text-gray-800 px-8 py-3 rounded-lg font-bold hover:bg-gray-300 transition-all border border-gray-300">
-                  Edit Details
+              {/* Action Buttons */}
+              <div className="flex justify-center gap-4 no-print pb-10">
+                <button onClick={() => setPreview(false)} className="bg-slate-200 text-slate-800 px-6 py-2.5 rounded-lg font-bold hover:bg-slate-300">
+                  Edit Form
                 </button>
-                <button onClick={handlePrint} className="bg-orange-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-orange-700 transition-all shadow-md">
-                  Print / Download PDF
+                <button onClick={handlePrint} className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2.5 rounded-lg font-bold shadow-md">
+                  Print PDF
+                </button>
+                <button onClick={() => setShowEmailModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold shadow-md">
+                  Send Email
                 </button>
               </div>
             </div>
           )}
         </div>
       </main>
+
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 no-print">
+          <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-sm">
+            <h3 className="text-base font-bold mb-3">Send Increment Letter</h3>
+            <input
+              type="email"
+              value={recipientEmail}
+              onChange={(e) => setRecipientEmail(e.target.value)}
+              className={inputClass}
+              placeholder="recipient@domain.com"
+            />
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setShowEmailModal(false)} className="px-3 py-1.5 text-xs text-slate-600">Cancel</button>
+              <button onClick={handleSendEmail} disabled={loading} className="bg-orange-600 text-white px-4 py-1.5 rounded text-xs font-bold">
+                {loading ? "Sending..." : "Send Now"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
