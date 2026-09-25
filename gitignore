@@ -1,23 +1,17 @@
 # ==========================================
-
 # React + Vite Frontend .gitignore
-
 # ==========================================
 
 # ------------------------------
-
 # Dependencies
-
 # ------------------------------
-
 node_modules/
+.pnp
+.pnp.js
 
 # ------------------------------
-
 # Environment Variables
-
 # ------------------------------
-
 .env
 .env.local
 .env.development
@@ -28,28 +22,22 @@ node_modules/
 .env.production.local
 
 # ------------------------------
-
 # Build / Production
-
 # ------------------------------
-
 dist/
 build/
+out/
 
 # ------------------------------
-
 # Vite
-
 # ------------------------------
-
 .vite/
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
 
 # ------------------------------
-
 # Logs
-
 # ------------------------------
-
 logs/
 *.log
 npm-debug.log*
@@ -59,34 +47,28 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # ------------------------------
-
 # Cache
-
 # ------------------------------
-
 .cache/
 .eslintcache
 .parcel-cache/
 .temp/
 .tmp/
+.npm/
 
 # ------------------------------
-
 # Test / Coverage
-
 # ------------------------------
-
 coverage/
 .nyc_output/
 test-results/
 playwright-report/
+cypress/videos/
+cypress/screenshots/
 
 # ------------------------------
-
 # IDE / Editors
-
 # ------------------------------
-
 .vscode/
 .idea/
 *.swp
@@ -95,11 +77,8 @@ playwright-report/
 *.swnx
 
 # ------------------------------
-
 # Operating System
-
 # ------------------------------
-
 .DS_Store
 .DS_Store?
 ._*
@@ -110,55 +89,37 @@ ehthumbs.db
 Desktop.ini
 
 # ------------------------------
-
 # Vercel
-
 # ------------------------------
-
 .vercel/
 
 # ------------------------------
-
 # Local SSL / Certificates
-
 # ------------------------------
-
 *.pem
 *.key
 *.crt
 
 # ------------------------------
-
 # Temporary Files
-
 # ------------------------------
-
 *.tmp
 *.temp
 *.bak
 *.backup
 
 # ------------------------------
-
 # Package Archives
-
 # ------------------------------
-
 *.tgz
 
 # ------------------------------
-
 # Editor History
-
 # ------------------------------
-
 .history/
 
 # ------------------------------
-
 # Miscellaneous
-
 # ------------------------------
-
 *.orig
 *.rej
