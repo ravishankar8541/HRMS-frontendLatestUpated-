@@ -1,5 +1,8 @@
+import { useLocation } from 'react-router-dom';
+import { vaultForm } from '../utils/vaultForm';
+import VaultEditNotice from '../components/VaultEditNotice';
+import DocumentPreview from "../components/DocumentPreview";
 import React, { useState, useRef, useEffect } from "react";
-import { useReactToPrint } from "react-to-print";
 import Sidebar from "../components/Sidebar";
 import { useEmployee } from "../context/EmployeeContext";
 
@@ -58,12 +61,13 @@ function CustomDropdown({ name, value, onChange, options, placeholder }) {
 }
 
 export default function AppointmentLetter() {
+  const location = useLocation();
   const { createAppointmentLetter, sendAppointmentEmail } = useEmployee();
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => vaultForm({
     name: "", fathersName: "", address: "", designation: "", salary: "",
     effectiveDate: "", manager: "", phone: "", personalEmail: ""
-  });
+  }, location.state?.vaultDocument, {name:'employeeName',designation:'position',effectiveDate:'joiningDate',manager:'hrName',personalEmail:'email'}));
 
   const [preview, setPreview] = useState(false);
   const [email, setEmail] = useState("");
@@ -78,13 +82,12 @@ export default function AppointmentLetter() {
     const { name, value } = e.target;
     let cleanValue = value;
     if (name === "salary") cleanValue = value.replace(/[^0-9]/g, "");
+    setSavedId(null);
     setFormData((prev) => ({ ...prev, [name]: cleanValue }));
   };
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `Appointment_Letter_${formData.name || "Employee"}`,
-  });
+  const [pdfOpen,setPdfOpen]=useState(false);
+  const handlePrint = async () => { if (!savedId && !(await handleSaveToDB())) return; setPdfOpen(true); };
 
   const getPayload = () => ({
     employeeName: formData.name,
@@ -164,7 +167,7 @@ export default function AppointmentLetter() {
   );
 
   // Full Footer with Complete Address (Only on Last Page)
-  const FullFooter = ({ pageNum }) => (
+  const FullFooter = () => (
     <div style={{ textAlign: "center", fontSize: "10.5px", color: "#777", paddingTop: "12px", borderTop: "1px solid #eee", marginTop: "auto" }}>
       <strong>Viral Ads Media </strong><br />
       B-27, Budh Vihar Phase 1, New Delhi-86 | Tel: 9354491934
@@ -202,13 +205,15 @@ export default function AppointmentLetter() {
       `}</style>
       <div className="no-print"><Sidebar /></div>
 
-      <main className="flex-1 p-8 print:p-0">
-        <div className="max-w-4xl mx-auto">
+      {pdfOpen && savedId && <DocumentPreview type="Appointment Letter" id={savedId} onClose={()=>setPdfOpen(false)}/>}
+      <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8 print:p-0">
+        <VaultEditNotice />
+        <div className="w-full">
 
           {!preview ? (
             <div className="bg-white rounded-xl shadow-md p-8 no-print border border-slate-200">
               <h1 className="text-2xl font-bold mb-6 text-gray-800 border-l-4 border-orange-600 pl-4">Generate Appointment Letter</h1>
-              <form onSubmit={(e) => { e.preventDefault(); setPreview(true); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <form onSubmit={async (e) => { e.preventDefault(); if(await handleSaveToDB()){setPreview(true);setPdfOpen(true);} }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div><label className="block text-sm font-medium mb-1">Employee Name</label><input name="name" value={formData.name} onChange={handleChange} className={inputClass} required /></div>
                 <div><label className="block text-sm font-medium mb-1">Father's Name</label><input name="fathersName" value={formData.fathersName} onChange={handleChange} className={inputClass} required /></div>
                 <div className="md:col-span-2"><label className="block text-sm font-medium mb-1">Full Address</label><input name="address" value={formData.address} onChange={handleChange} className={inputClass} required /></div>

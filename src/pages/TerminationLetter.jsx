@@ -1,5 +1,7 @@
+import { vaultForm } from '../utils/vaultForm';
+import VaultEditNotice from '../components/VaultEditNotice';
+import DocumentPreview from "../components/DocumentPreview";
 import React, { useState, useRef, useEffect } from "react";
-import { useReactToPrint } from "react-to-print";
 import { useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { useEmployee } from "../context/EmployeeContext";
@@ -62,7 +64,7 @@ const TerminationLetter = () => {
   const { employees, createTerminationRecord, sendTerminationEmail } = useEmployee();
   const location = useLocation();
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => vaultForm({
     employeeId: "", 
     name: "",
     email: "",
@@ -72,7 +74,7 @@ const TerminationLetter = () => {
     lastWorkingDate: "",
     reason: "",
     hrName: "",
-  });
+  }, location.state?.vaultDocument, {name:'employeeName',email:'employeeEmail',phoneNumber:'employeePhone'}));
 
   const [preview, setPreview] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -104,28 +106,13 @@ const TerminationLetter = () => {
     }
   }, [location.search, employees]);
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `Termination_Letter_${formData.name || "Employee"}`,
-  });
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleGenerate = (e) => {
-    e.preventDefault();
-    setPreview(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleSendEmail = async () => {
-    if (!formData.email.trim()) return alert("Please enter a recipient email");
-    
-    setLoading(true);
-    try {
+  const [pdfId,setPdfId]=useState(null);
+  const savedRecord=useRef(null);
+  const ensureRecord=async()=>{
+      const key=JSON.stringify(formData);
+      if(savedRecord.current?.key===key)return savedRecord.current.id;
       const recordRes = await createTerminationRecord({
-        employeeId: formData.employeeId || "60d0fe4f5311236168a109ca",
+        employeeId: formData.employeeId || undefined,
         employeeName: formData.name,
         email: formData.email,
         phoneNumber: formData.phoneNumber,
@@ -136,6 +123,28 @@ const TerminationLetter = () => {
       });
 
       const mongoId = recordRes.data?._id || recordRes._id;
+
+      savedRecord.current={key,id:mongoId};return mongoId;
+  };
+  const handlePrint=async()=>{if(loading)return;setLoading(true);try{setPdfId(await ensureRecord());}catch(e){alert(e.response?.data?.message || e.message);}finally{setLoading(false);}};
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleGenerate = async (e) => {
+    e.preventDefault();
+    await handlePrint();
+    setPreview(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleSendEmail = async () => {
+    if (!formData.email.trim()) return alert("Please enter a recipient email");
+    
+    setLoading(true);
+    try {
+      const mongoId = await ensureRecord();
       if (!mongoId) throw new Error("Failed to retrieve record ID");
 
       await sendTerminationEmail(mongoId, formData.email);
@@ -204,8 +213,10 @@ const TerminationLetter = () => {
       `}</style>
       <div className="no-print"><Sidebar /></div>
 
-      <main className="flex-1 p-8 print:p-0">
-        <div className="max-w-4xl mx-auto">
+      {pdfId && <DocumentPreview type="Termination Letter" id={pdfId} onClose={()=>setPdfId(null)}/>}
+      <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8 print:p-0">
+        <VaultEditNotice />
+        <div className="w-full">
           
           {!preview ? (
             <div className="bg-white rounded-xl shadow-md p-8 no-print border border-slate-200">

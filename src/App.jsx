@@ -1,23 +1,24 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import OfferLetter from "./pages/OfferLetter";
-import AppointmentLetter from "./pages/AppointmentLetter";
-import SalarySlip from "./pages/SalarySlip";
-import IncrementLetter from "./pages/IncrementLetter";
-import Onboarding from "./pages/Onboarding";
-import Offboarding from "./pages/Offboarding";
-import FNF from "./pages/FNF";
-import TerminationLetter from "./pages/TerminationLetter";
-import DocumentVault from "./pages/DocumentVault";
+const Login = lazy(() => import("./pages/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const OfferLetter = lazy(() => import("./pages/OfferLetter"));
+const AppointmentLetter = lazy(() => import("./pages/AppointmentLetter"));
+const SalarySlip = lazy(() => import("./pages/SalarySlip"));
+const IncrementLetter = lazy(() => import("./pages/IncrementLetter"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
+const Offboarding = lazy(() => import("./pages/Offboarding"));
+const FNF = lazy(() => import("./pages/FNF"));
+const TerminationLetter = lazy(() => import("./pages/TerminationLetter"));
+const DocumentVault = lazy(() => import("./pages/DocumentVault"));
 import ProtectedRoute from "./components/ProtectedRoute";
-import AddEmployee from "./pages/AddEmployee";
-import EmployeesList from "./pages/EmployeesList";
+const AddEmployee = lazy(() => import("./pages/AddEmployee"));
+const EmployeesList = lazy(() => import("./pages/EmployeesList"));
 
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
+      <Suspense fallback={<div className="p-8" role="status">Loading…</div>}><Routes>
         <Route path="/" element={<Login />} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/documents" element={<ProtectedRoute><DocumentVault /></ProtectedRoute>} />
@@ -32,7 +33,7 @@ function App() {
         <Route path="/fnf" element={<ProtectedRoute><FNF /></ProtectedRoute>} />
         <Route path="/termination" element={<ProtectedRoute><TerminationLetter /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      </Routes></Suspense>
     </BrowserRouter>
   );
 }

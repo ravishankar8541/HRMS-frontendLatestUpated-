@@ -1,6 +1,8 @@
+import { vaultForm } from '../utils/vaultForm';
+import VaultEditNotice from '../components/VaultEditNotice';
+import DocumentPreview from "../components/DocumentPreview";
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { useReactToPrint } from "react-to-print";
 import Sidebar from "../components/Sidebar";
 import { useEmployee } from "../context/EmployeeContext";
 
@@ -35,7 +37,7 @@ export default function IncrementLetter() {
   const { employees, createIncrementLetter, sendIncrementLetterEmail } = useEmployee();
   const location = useLocation();
   
-  const [formData, setFormData] = useState(initialFormData);
+  const [formData, setFormData] = useState(() => vaultForm(initialFormData, location.state?.vaultDocument, {}));
   const [preview, setPreview] = useState(false);
   const [incrementId, setIncrementId] = useState("");
   const [savedDbId, setSavedDbId] = useState(null);
@@ -71,10 +73,8 @@ export default function IncrementLetter() {
     }
   }, [location.search, employees]);
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `Increment_Letter_${formData.employeeName || "Employee"}`,
-  });
+  const [pdfOpen,setPdfOpen]=useState(false);
+  const handlePrint = async () => {  setPdfOpen(true); };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -102,6 +102,7 @@ export default function IncrementLetter() {
       setSavedDbId(res.data._id);
       setRecipientEmail(formData.emailId);
       setPreview(true);
+      setPdfOpen(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       alert(err.message || "Failed to save Increment Letter");
@@ -130,8 +131,10 @@ export default function IncrementLetter() {
     <div className="flex min-h-screen bg-slate-100">
       <div className="no-print"><Sidebar /></div>
 
-      <main className="flex-1 p-8 print:p-0">
-        <div className="max-w-4xl mx-auto">
+      {pdfOpen && savedDbId && <DocumentPreview type="Increment Letter" id={savedDbId} onClose={()=>setPdfOpen(false)}/>}
+      <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8 print:p-0">
+        <VaultEditNotice />
+        <div className="w-full">
           {!preview ? (
             <div className="bg-white rounded-xl shadow-md p-8 no-print border border-slate-200">
               <h1 className="text-2xl font-bold mb-6 text-gray-800 border-l-4 border-orange-600 pl-4">

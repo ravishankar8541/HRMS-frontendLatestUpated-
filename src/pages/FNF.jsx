@@ -1,402 +1,590 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
-import { useReactToPrint } from "react-to-print";
-import Sidebar from "../components/Sidebar";
-import { useEmployee } from "../context/EmployeeContext";
+import { vaultForm } from '../utils/vaultForm';
+import VaultEditNotice from '../components/VaultEditNotice';
+import DocumentPreview from "../components/DocumentPreview";
+import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
+import Sidebar from '../components/Sidebar';
+import { useEmployee } from '../context/EmployeeContext';
+import api from '../../services/api';
+import { getApiUrl } from '../utils/serverBase';
 
-const FNF = () => {
-    const { employees, createFNFRecord, sendFNFEmail } = useEmployee();
-    const location = useLocation();
-    const printRef = useRef(null);
-
-    const [data, setData] = useState({
-        name: "",
-        email: "",
-        phone: "",
-        dateOfJoining: "",
-        lastWorkingDay: "",
-        pendingSalary: "",
-        leaveEncashment: "0",
-        bonus: "0",
-        deductions: "0",
-        empId: "",
-        designation: "",
-        address: "",
-        bankAccount: "",
-        ifsc: "",
-    });
-
-    const [showEmailModal, setShowEmailModal] = useState(false);
-    const [loading, setLoading] = useState(false);
-
-    const inputClass = "block w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-orange-500/20 outline-none transition-all shadow-sm bg-white";
-
-    useEffect(() => {
-        const params = new URLSearchParams(location.search);
-        const employeeId = params.get("employeeId");
-
-        if (employeeId && employees.length > 0) {
-            const emp = employees.find((e) => String(e._id) === employeeId);
-
-            if (emp) {
-                setData((prev) => ({
-                    ...prev,
-                    name: emp.name || "",
-                    email: emp.email || "",
-                    phone: emp.phoneNumber || emp.phone || "",
-                    dateOfJoining: emp.dateOfJoining ? emp.dateOfJoining.split("T")[0] : "",
-                    lastWorkingDay: emp.dateOfExit ? emp.dateOfExit.split("T")[0] : "",
-                    pendingSalary: emp.salary || "",
-
-                    // ✅ SAME ID SYSTEM AS PAYSLIP
-                    empId: emp.empId || `VAM-${emp._id.slice(-4).toUpperCase()}`,
-
-                    designation: emp.designation || "",
-                    address: emp.address || "",
-                    bankAccount: emp.accountNumber || emp.bankAccountNo || "",
-                    ifsc: emp.ifscCode || emp.ifsc || "",
-                }));
-            }
-        }
-    }, [location.search, employees]);
-
-
-    const handleChange = (e) => {
-        setData({ ...data, [e.target.name]: e.target.value });
-    };
-
-    const totalAmount =
-        Number(data.pendingSalary || 0) +
-        Number(data.leaveEncashment || 0) +
-        Number(data.bonus || 0) -
-        Number(data.deductions || 0);
-
-    const handlePrint = useReactToPrint({
-        contentRef: printRef,
-        documentTitle: `FNF_Statement_${data.name || "Employee"}`,
-    });
-    const handleSendEmail = async () => {
-        if (!data.email.trim()) return alert("Please enter a recipient email");
-
-        // Required fields check
-        if (!data.empId || !data.name || !data.phone || !data.dateOfJoining ||
-            !data.lastWorkingDay || !data.pendingSalary) {
-            return alert("❌ Missing required fields!\n\nPlease fill:\n• Employee ID\n• Name\n• Phone\n• Date of Joining\n• Last Working Day\n• Pending Salary");
-        }
-
-        // ====================== FIXED PAYLOAD (this was the bug) ======================
-
-
-        setLoading(true);
-        try {
-            const recordRes = await createFNFRecord({
-                employeeId: data.empId,
-                employeeName: data.name,
-                email: data.email,
-                phone: data.phone,
-                dateOfJoining: data.dateOfJoining,
-                lastWorkingDay: data.lastWorkingDay,
-                pendingSalary: data.pendingSalary,
-                leaveEncashment: data.leaveEncashment,
-                incentive: data.bonus,
-                deductions: data.deductions,
-                totalPayable: totalAmount,
-
-                // ←←← THESE 4 LINES WERE MISSING → NOW ADDED
-                designation: data.designation || "N/A",
-                address: data.address || "N/A",
-                bankAccount: data.bankAccount || "N/A",
-                ifsc: data.ifsc || "N/A"
-            });
-
-            const mongoId = recordRes.data?._id || recordRes._id;
-            if (!mongoId) throw new Error("Failed to retrieve Record ID");
-
-            await sendFNFEmail(mongoId, data.email);
-
-            alert(`✅ FNF Statement sent to ${data.email} successfully!`);
-            setShowEmailModal(false);
-        } catch (error) {
-            console.error("❌ FULL Backend Error:", error.response?.data || error);
-            alert(error.response?.data?.message || error.response?.data?.error || "Failed to create FNF record");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const LetterHead = () => (
-        <div style={{ borderBottom: "2px solid #f27022", paddingBottom: "10px", marginBottom: "20px", marginTop: "-50px" }}>
-            <table style={{ width: "100%" }}>
-                <tbody>
-                    <tr>
-                        <td style={{ width: "60%" }}>
-                            <img src="/blackLogo.png" alt="Logo" style={{ width: "180px", height: "auto" }} />
-
-                        </td>
-                        <td style={{ textAlign: "right", fontSize: "11px", color: "#333", verticalAlign: "middle" }}>
-                            <strong>VIRAL ADS MEDIA</strong><br />
-                            B-27, Budh Vihar Phase 1, New Delhi - 110086<br />
-                            Date: {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    );
-
-    return (
-        <div className="flex min-h-screen bg-slate-100">
-            <style>{`
-                @media print {
-                    @page { size: A4; margin: 0mm; }
-                    body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; }
-                    .no-print { display: none !important; }
-                }
-            `}</style>
-
-            <div className="no-print">
-                <Sidebar />
-            </div>
-
-            <main className="flex-1 p-4 md:p-10 print:p-0">
-                <div className="max-w-5xl mx-auto space-y-10">
-
-                    {/* FORM SECTION */}
-                    <div className="bg-white rounded-xl shadow-sm p-6 md:p-10 no-print border border-slate-200">
-                        <h1 className="text-2xl font-bold mb-8 text-gray-800 border-l-4 border-orange-600 pl-4">
-                            Full & Final Settlement (FNF)
-                        </h1>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Employee ID</label>
-                                <input name="empId" value={data.empId} onChange={handleChange} className={inputClass} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Employee Name</label>
-                                <input name="name" value={data.name} onChange={handleChange} className={inputClass} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Designation</label>
-                                <input name="designation" value={data.designation} onChange={handleChange} className={inputClass} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Email</label>
-                                <input name="email" value={data.email} onChange={handleChange} className={inputClass} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Phone Number</label>
-                                <input name="phone" value={data.phone} onChange={handleChange} className={inputClass} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Address</label>
-                                <input name="address" value={data.address} onChange={handleChange} className={inputClass} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Date of Joining</label>
-                                <input type="date" name="dateOfJoining" value={data.dateOfJoining} onChange={handleChange} className={inputClass} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Last Working Day</label>
-                                <input name="lastWorkingDay" type="date" value={data.lastWorkingDay} onChange={handleChange} className={inputClass} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Bank Account Number</label>
-                                <input name="bankAccount" value={data.bankAccount} onChange={handleChange} className={inputClass} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">IFSC Code</label>
-                                <input name="ifsc" value={data.ifsc} onChange={handleChange} className={inputClass} placeholder="e.g. SBIN0001234" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Pending Salary (₹)</label>
-                                <input name="pendingSalary" type="number" value={data.pendingSalary} onChange={handleChange} className={inputClass} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Leave Encashment (₹)</label>
-                                <input name="leaveEncashment" type="number" value={data.leaveEncashment} onChange={handleChange} className={inputClass} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Bonus / Incentive (₹)</label>
-                                <input name="bonus" type="number" value={data.bonus} onChange={handleChange} className={inputClass} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-600">Deductions (₹)</label>
-                                <input name="deductions" type="number" value={data.deductions} onChange={handleChange} className={inputClass} />
-                            </div>
-
-                            <div className="md:col-span-2 flex gap-4 mt-6">
-                                <button
-                                    onClick={handlePrint}
-                                    className="flex-1 bg-orange-600 text-white py-3 rounded-lg font-bold hover:bg-orange-700 transition-all shadow-md active:scale-[0.98]"
-                                >
-                                    Print FNF Statement
-                                </button>
-                                <button
-                                    onClick={() => setShowEmailModal(true)}
-                                    className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition-all shadow-md active:scale-[0.98]"
-                                >
-                                    Send to Email
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="no-print text-center text-gray-400 text-sm font-medium uppercase tracking-widest mb-4">
-                        --- Document Preview ---
-                    </div>
-
-                    <div ref={printRef} className="bg-white shadow-lg mx-auto overflow-hidden rounded-sm">
-                        <div style={{
-                            width: "210mm",
-                            minHeight: "297mm",
-                            padding: "20mm",
-                            margin: "0 auto",
-                            backgroundColor: "white",
-                            position: "relative",   // ⭐ ADD THIS
-                            fontFamily: "'Times New Roman', Times, serif",
-                            fontSize: "14px",
-                            lineHeight: "1.6",
-                            color: "#1a1a1a",
-                        }}>
-                          
-                          {/* PERFECT WATERMARK */}
-<div
-  style={{
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%, -50%) rotate(-35deg)",
-    width: "100%",
-    height: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    pointerEvents: "none",
-    userSelect: "none",
-    zIndex: 0
-  }}
->
-  <img
-    src="/blackLogo.png"
-    alt="Watermark"
-    style={{
-      width: "850px",
-      height: "auto",
-      opacity: 0.05,
-      objectFit: "contain"
-    }}
-  />
-</div>
-
-                            <LetterHead />
-                            <h1 style={{ textAlign: "center", fontSize: "22px", margin: "20px 0", textDecoration: "underline", textTransform: "uppercase", fontWeight: "bold" }}>
-                                FULL & FINAL SETTLEMENT STATEMENT
-                            </h1>
-
-                            <div style={{ marginTop: "30px", marginBottom: "30px" }}>
-                                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                                    <tbody>
-                                        <tr>
-                                            <td style={{ padding: "12px", border: "1px solid #eee" }}><strong>Emp ID:</strong> {data.empId || "---"}</td>
-                                            <td style={{ padding: "12px", border: "1px solid #eee" }}><strong>Name:</strong> {data.name}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style={{ padding: "12px", border: "1px solid #eee" }}><strong>Designation:</strong> {data.designation || "---"}</td>
-                                            <td style={{ padding: "12px", border: "1px solid #eee" }}><strong>Email:</strong> {data.email}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style={{ padding: "12px", border: "1px solid #eee" }}><strong>Phone:</strong> {data.phone}</td>
-                                            <td style={{ padding: "12px", border: "1px solid #eee" }}><strong>DOJ:</strong> {data.dateOfJoining}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style={{ padding: "12px", border: "1px solid #eee" }}><strong>Address:</strong> {data.address || "---"}</td>
-                                            <td style={{ padding: "12px", border: "1px solid #eee" }}><strong>Last Working Day:</strong> {data.lastWorkingDay}</td>
-                                        </tr>
-                                        <tr>
-                                            <td colSpan="2" style={{ padding: "12px", border: "1px solid #eee" }}>
-                                                <strong>Bank Details:</strong> {data.bankAccount ? `${data.bankAccount}  |  IFSC: ${data.ifsc || "---"}` : "---"}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <div style={{ marginTop: "20px" }}>
-                                <table style={{ width: "100%", borderCollapse: "collapse", border: "2px solid #f27022" }}>
-                                    <thead>
-                                        <tr style={{ backgroundColor: "#f27022", color: "white" }}>
-                                            <th style={{ padding: "12px", textAlign: "left" }}>Particulars</th>
-                                            <th style={{ padding: "12px", textAlign: "right" }}>Amount (INR)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr style={{ borderBottom: "1px solid #eee" }}>
-                                            <td style={{ padding: "12px" }}>Pending Salary</td>
-                                            <td style={{ padding: "12px", textAlign: "right" }}>{Number(data.pendingSalary || 0).toFixed(2)}</td>
-                                        </tr>
-                                        <tr style={{ borderBottom: "1px solid #eee" }}>
-                                            <td style={{ padding: "12px" }}>Leave Encashment</td>
-                                            <td style={{ padding: "12px", textAlign: "right" }}>{Number(data.leaveEncashment || 0).toFixed(2)}</td>
-                                        </tr>
-                                        <tr style={{ borderBottom: "1px solid #eee" }}>
-                                            <td style={{ padding: "12px" }}>Bonus / Incentive</td>
-                                            <td style={{ padding: "12px", textAlign: "right" }}>{Number(data.bonus || 0).toFixed(2)}</td>
-                                        </tr>
-                                        <tr style={{ borderBottom: "1px solid #eee", color: "#d32f2f" }}>
-                                            <td style={{ padding: "12px" }}>Deductions</td>
-                                            <td style={{ padding: "12px", textAlign: "right" }}>- {Number(data.deductions || 0).toFixed(2)}</td>
-                                        </tr>
-                                        <tr style={{ backgroundColor: "#fff5f0" }}>
-                                            <td style={{ padding: "15px", fontWeight: "bold", color: "#f27022" }}>NET PAYABLE</td>
-                                            <td style={{ padding: "15px", textAlign: "right", fontWeight: "bold", fontSize: "18px", color: "#f27022" }}>
-                                                ₹ {totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <div style={{ marginTop: "80px", display: "flex", justifyContent: "space-between" }}>
-                                <div>
-                                    <p>Prepared By,</p>
-                                    <div style={{ height: "20px" }}></div>
-                                    <p><br /><strong>HR Department</strong></p>
-                                </div>
-                                <div style={{ textAlign: "right" }}>
-                                    <p>Employee Acknowledgment,</p>
-                                    <div style={{ height: "50px" }}></div>
-                                    <p>__________________________<br /></p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </main>
-
-            {/* EMAIL MODAL */}
-            {showEmailModal && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 no-print backdrop-blur-sm">
-                    <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
-                        <h3 className="text-xl font-bold mb-2">Send Statement</h3>
-                        <p className="text-gray-500 text-sm mb-4">Confirm the recipient's email address below.</p>
-                        <input
-                            type="email"
-                            value={data.email}
-                            onChange={e => setData({ ...data, email: e.target.value })}
-                            className={inputClass}
-                        />
-                        <div className="flex justify-end gap-3 mt-8">
-                            <button onClick={() => setShowEmailModal(false)} className="px-4 py-2 text-gray-500 hover:text-gray-700 font-medium">Cancel</button>
-                            <button onClick={handleSendEmail} disabled={loading} className="bg-orange-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-orange-700">
-                                {loading ? "Sending..." : "Send Now"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+const initial = {
+  employeeId: '',
+  employeeName: '',
+  email: '',
+  phone: '',
+  dateOfJoining: '',
+  lastWorkingDay: '',
+  designation: '',
+  address: '',
+  bankAccount: '',
+  ifsc: '',
+  pendingSalary: 0,
+  leaveEncashment: 0,
+  incentive: 0,
+  gratuity: 0,
+  noticeRecovery: 0,
+  deductions: 0,
+  laptopReturned: false,
+  idCardReturned: false,
+  clearanceApproved: false,
+  remarks: '',
 };
 
-export default FNF;
+const moneyFields = {
+  pendingSalary: 'Unpaid salary',
+  leaveEncashment: 'Leave encashment',
+  incentive: 'Bonus / incentive',
+  gratuity: 'Gratuity',
+  noticeRecovery: 'Notice recovery',
+  deductions: 'Other deductions / tax',
+};
+
+const textFields = {
+  employeeId: 'Employee ID',
+  employeeName: 'Employee name',
+  email: 'Registered email',
+  phone: 'Phone',
+  dateOfJoining: 'Joining date',
+  lastWorkingDay: 'Last working day',
+  designation: 'Designation',
+  bankAccount: 'Bank account',
+  ifsc: 'IFSC',
+  address: 'Address',
+};
+
+const inr = (value) =>
+  Number(value).toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
+
+export default function FNF() {
+  const { employees } = useEmployee();
+  const location = useLocation();
+  const [data, setData] = useState(() => vaultForm(initial, location.state?.vaultDocument, {}));
+  const [records, setRecords] = useState([]);
+  const [previewRecord, setPreviewRecord] = useState(null);
+  const [editId, setEditId] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const endpoint = getApiUrl() + '/fnf';
+
+  const refresh = useCallback(async () => {
+    const response = await api.get(endpoint);
+    setRecords(response.data.data);
+  }, [endpoint]);
+
+  useEffect(() => {
+    refresh().catch((e) =>
+      setMessage(e.response?.data?.message || 'Unable to load settlements')
+    );
+  }, [refresh]);
+
+  const selectEmployee = useCallback(
+    (id) => {
+      const emp = employees.find((e) => e._id === id);
+      if (!emp) return;
+      setEditId(null);
+      setData({
+        ...initial,
+        employeeId: emp.empId || `VAM-${emp._id.slice(-4).toUpperCase()}`,
+        employeeName: emp.name,
+        email: emp.email,
+        phone: emp.phoneNumber || emp.phone || '',
+        dateOfJoining: emp.dateOfJoining?.slice(0, 10) || '',
+        lastWorkingDay: emp.dateOfExit?.slice(0, 10) || '',
+        designation: emp.designation || '',
+        bankAccount: emp.accountNumber || '',
+        ifsc: emp.ifscCode || '',
+        address: emp.address || '',
+      });
+    },
+    [employees]
+  );
+
+  useEffect(() => {
+    const id = new URLSearchParams(location.search).get('employeeId');
+    if (id) selectEmployee(id);
+  }, [location.search, selectEmployee]);
+
+  const total =
+    (Math.round(Number(data.pendingSalary) * 100) +
+      Math.round(Number(data.leaveEncashment) * 100) +
+      Math.round(Number(data.incentive) * 100) +
+      Math.round(Number(data.gratuity) * 100) -
+      Math.round(Number(data.noticeRecovery) * 100) -
+      Math.round(Number(data.deductions) * 100)) /
+    100;
+
+  const run = async (action) => {
+    if (busy) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      await action();
+      await refresh();
+    } catch (e) {
+      setMessage(e.response?.data?.message || e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = (e) => {
+    e.preventDefault();
+    run(async () => {
+      const response = editId
+        ? await api.put(`${endpoint}/${editId}`, data)
+        : await api.post(endpoint, data);
+      if (e.nativeEvent.submitter?.value === 'preview')
+        setPreviewRecord(response.data.data);
+      setEditId(null);
+      setData(initial);
+      setMessage(
+        'Draft saved. Review the saved amounts and approve when clearance is complete.'
+      );
+    });
+  };
+
+  const transition = (record, status) =>
+    run(async () => {
+      const paymentReference =
+        status === 'Disbursed'
+          ? window.prompt('Enter the completed bank payment reference')
+          : undefined;
+      if (status === 'Disbursed' && !paymentReference) return;
+      await api.patch(`${endpoint}/${record._id}/status`, {
+        status,
+        paymentReference,
+      });
+      setMessage(
+        status === 'Disbursed' ? 'Payment recorded.' : 'Settlement approved.'
+      );
+    });
+
+  const send = (record, documentId) =>
+    run(async () => {
+      await api.post(`${endpoint}/${record._id}/send`, { documentId });
+      setMessage(
+        `Statement emailed to ${record.email}. The exact attachment is now in their wallet.`
+      );
+    });
+
+  const remove = (record) => {
+    if (
+      window.confirm(
+        'Delete this saved settlement? Archived PDFs remain in the audit hub.'
+      )
+    )
+      run(async () => {
+        await api.delete(endpoint + '/' + record._id);
+        if (editId === record._id) {
+          setEditId(null);
+          setData(initial);
+        }
+        setMessage('Settlement deleted.');
+      });
+  };
+
+  const input =
+    'block w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 shadow-sm transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20';
+
+  return (
+    <div className="flex min-h-screen bg-slate-100 text-gray-800">
+      <Sidebar />
+      <main className="min-w-0 flex-1 space-y-8 p-4 sm:p-6 lg:p-8">
+        <VaultEditNotice />
+        {/* Header */}
+        <div className="space-y-1.5">
+          <div className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700 ring-1 ring-orange-100">
+            <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+            Payroll · Exit
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 lg:text-3xl">
+            Full &amp; Final Settlement
+          </h1>
+          <p className="max-w-2xl text-sm text-slate-500">
+            Prepare a draft → review and approve → send the statement → record
+            payment.
+          </p>
+        </div>
+
+        {message && (
+          <div
+            role="status"
+            className="flex items-start gap-3 rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-900 shadow-sm"
+          >
+            <svg
+              className="mt-0.5 h-4 w-4 shrink-0 text-orange-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span>{message}</span>
+          </div>
+        )}
+
+        {/* Form */}
+        <form
+          onSubmit={save}
+          className="space-y-6 rounded-xl border border-gray-200 bg-white p-6 shadow-md lg:p-8"
+        >
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+            </div>
+            <h2 className="text-sm font-semibold text-slate-800">
+              {editId ? 'Edit settlement draft' : 'New settlement draft'}
+            </h2>
+          </div>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-slate-500">
+              Choose employee
+            </span>
+            <select
+              className={input}
+              value={
+                employees.find(
+                  (e) =>
+                    e.name === data.employeeName && e.email === data.email
+                )?._id || ''
+              }
+              onChange={(e) => selectEmployee(e.target.value)}
+            >
+              <option value="">Select an employee</option>
+              {employees.map((e) => (
+                <option key={e._id} value={e._id}>
+                  {e.name} — {e.email}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {Object.entries(textFields).map(([key, label]) => (
+              <label key={key} className="space-y-1.5">
+                <span className="text-xs font-medium text-slate-500">
+                  {label}
+                </span>
+                <input
+                  className={input}
+                  type={
+                    key === 'email'
+                      ? 'email'
+                      : key === 'dateOfJoining' || key === 'lastWorkingDay'
+                        ? 'date'
+                        : 'text'
+                  }
+                  required={[
+                    'employeeId',
+                    'employeeName',
+                    'email',
+                    'phone',
+                    'dateOfJoining',
+                    'lastWorkingDay',
+                  ].includes(key)}
+                  min={key === 'lastWorkingDay' ? data.dateOfJoining : undefined}
+                  value={data[key]}
+                  onChange={(e) =>
+                    setData({ ...data, [key]: e.target.value })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+
+          <div className="rounded-xl border border-amber-100 bg-amber-50/60 px-4 py-3 text-sm text-amber-900">
+            Enter confirmed payroll amounts. Unpaid salary is the actual balance
+            due, not automatically the full monthly salary. Gratuity, taxes and
+            recoveries must be checked by payroll.
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {Object.entries(moneyFields).map(([key, label]) => (
+              <label key={key} className="space-y-1.5">
+                <span className="text-xs font-medium text-slate-500">
+                  {label} (₹)
+                </span>
+                <input
+                  className={input}
+                  type="number"
+                  min="0"
+                  max="1000000000"
+                  step="0.01"
+                  required
+                  value={data[key]}
+                  onChange={(e) =>
+                    setData({ ...data, [key]: e.target.value })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-x-6 gap-y-3">
+            {Object.entries({
+              laptopReturned: 'Assets returned / not applicable',
+              idCardReturned: 'ID card returned / not applicable',
+              clearanceApproved: 'HR and payroll clearance complete',
+            }).map(([key, label]) => (
+              <label
+                key={key}
+                className="inline-flex cursor-pointer items-center gap-2.5 text-sm text-slate-700"
+              >
+                <input
+                  type="checkbox"
+                  checked={data[key]}
+                  onChange={(e) =>
+                    setData({ ...data, [key]: e.target.checked })
+                  }
+                  className="h-4 w-4 rounded border-gray-300 accent-orange-600 text-orange-600 focus:ring-orange-500"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-slate-500">Notes</span>
+            <textarea
+              className={`${input} min-h-[88px] resize-y`}
+              value={data.remarks}
+              onChange={(e) => setData({ ...data, remarks: e.target.value })}
+            />
+          </label>
+
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50/80 px-5 py-4">
+            <p className="text-lg font-semibold text-slate-900">
+              <span className="text-sm font-medium text-slate-500">
+                {total < 0 ? 'Recovery due' : 'Net payable'}
+              </span>
+              <span className="ml-2">{inr(Math.abs(total))}</span>
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                disabled={busy}
+                className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {editId ? 'Update draft' : 'Save draft'}
+              </button>
+              <button
+                type="submit"
+                value="preview"
+                disabled={busy}
+                className="inline-flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-5 py-3 text-sm font-bold text-orange-700 shadow-sm transition hover:border-orange-300 hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Save &amp; preview PDF
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {/* Saved settlements */}
+        <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-900/5">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </div>
+            <h2 className="text-sm font-semibold text-slate-800">
+              Saved settlements
+            </h2>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/80">
+                  {['Employee', 'Last day', 'Net amount', 'Status', 'Actions'].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500"
+                      >
+                        {h}
+                      </th>
+                    )
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {records.map((r) => (
+                  <tr key={r._id} className="transition hover:bg-slate-50/80">
+                    <td className="p-4">
+                      <div className="font-medium text-slate-900">
+                        {r.employeeName}
+                      </div>
+                      <div className="mt-0.5 text-xs text-slate-500">
+                        {r.email}
+                      </div>
+                      <details className="mt-2 group">
+                        <summary className="cursor-pointer text-xs font-medium text-indigo-600 hover:text-indigo-700">
+                          View breakdown
+                        </summary>
+                        <div className="mt-2 space-y-1 rounded-lg border border-slate-100 bg-slate-50/80 p-3 text-xs text-slate-600">
+                          {Object.entries(moneyFields).map(([key, label]) => (
+                            <div key={key} className="flex justify-between gap-4">
+                              <span>{label}</span>
+                              <span className="font-medium tabular-nums">
+                                {inr(r[key] || 0)}
+                              </span>
+                            </div>
+                          ))}
+                          {r.remarks && (
+                            <p className="border-t border-slate-200 pt-2 text-slate-500">
+                              {r.remarks}
+                            </p>
+                          )}
+                          <p className="border-t border-slate-200 pt-2 text-slate-500">
+                            Assets:{' '}
+                            {r.laptopReturned ? 'Cleared' : 'Pending'} · ID:{' '}
+                            {r.idCardReturned ? 'Cleared' : 'Pending'} · HR:{' '}
+                            {r.clearanceApproved ? 'Cleared' : 'Pending'}
+                          </p>
+                        </div>
+                      </details>
+                    </td>
+                    <td className="p-4 text-slate-600">{r.lastWorkingDay}</td>
+                    <td className="p-4 font-medium tabular-nums text-slate-900">
+                      {inr(r.totalPayable)}
+                    </td>
+                    <td className="p-4">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          r.status === 'Disbursed'
+                            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20'
+                            : r.status === 'Approved'
+                              ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600/20'
+                              : r.status === 'Draft'
+                                ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20'
+                                : 'bg-slate-100 text-slate-600 ring-1 ring-slate-500/20'
+                        }`}
+                      >
+                        {r.status}
+                      </span>
+                      {r.paymentReference && (
+                        <div className="mt-1 text-xs text-slate-500">
+                          {r.paymentReference}
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                        <button
+                          disabled={busy}
+                          onClick={() => {
+                            setData({ ...initial, ...r });
+                            setEditId(
+                              r.status === 'Disbursed' ? null : r._id
+                            );
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className="text-sm font-medium text-slate-600 transition hover:text-slate-900 disabled:opacity-50"
+                        >
+                          {r.status === 'Disbursed'
+                            ? 'Edit as new draft'
+                            : 'Edit'}
+                        </button>
+                        <button
+                          disabled={busy}
+                          onClick={() => setPreviewRecord(r)}
+                          className="text-sm font-medium text-indigo-600 transition hover:text-indigo-700 disabled:opacity-50"
+                        >
+                          Preview PDF
+                        </button>
+                        <button
+                          disabled={busy}
+                          onClick={() => remove(r)}
+                          className="text-sm font-medium text-red-600 transition hover:text-red-700 disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                        {r.status === 'Draft' && (
+                          <button
+                            disabled={busy}
+                            onClick={() => transition(r, 'Approved')}
+                            className="text-sm font-medium text-emerald-600 transition hover:text-emerald-700 disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                        )}
+                        {['Approved', 'Disbursed'].includes(r.status) && (
+                          <button
+                            disabled={busy}
+                            onClick={() => setPreviewRecord(r)}
+                            className="text-sm font-medium text-indigo-600 transition hover:text-indigo-700 disabled:opacity-50"
+                          >
+                            Send statement
+                          </button>
+                        )}
+                        {r.status === 'Approved' && (
+                          <button
+                            disabled={busy}
+                            onClick={() => transition(r, 'Disbursed')}
+                            className="text-sm font-medium text-emerald-600 transition hover:text-emerald-700 disabled:opacity-50"
+                          >
+                            Record payment
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {!records.length && (
+            <p className="p-10 text-center text-sm text-slate-500">
+              No settlements yet.
+            </p>
+          )}
+        </section>
+
+        {previewRecord && (
+          <DocumentPreview
+            key={previewRecord._id}
+            type="FNF Settlement"
+            id={previewRecord._id}
+            busy={busy}
+            onClose={() => setPreviewRecord(null)}
+            onSend={
+              ['Approved', 'Disbursed'].includes(previewRecord.status)
+                ? (documentId) => send(previewRecord, documentId)
+                : undefined
+            }
+          />
+        )}
+      </main>
+    </div>
+  );
+}

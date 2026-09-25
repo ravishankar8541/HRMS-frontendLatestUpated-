@@ -1,8 +1,14 @@
+import api from '../../services/api';
+import { getApiUrl } from '../utils/serverBase';
+import { useEmployee } from '../context/EmployeeContext';
 import React, { useState } from "react";
 import Sidebar from "../components/Sidebar";
 
 const Offboarding = () => {
+  const {employees}=useEmployee();
+  const [saving,setSaving]=useState(false);
   const [data, setData] = useState({
+    employee: "",
     name: "",
     designation: "",
     lastWorkingDay: "",
@@ -51,14 +57,17 @@ const Offboarding = () => {
               Offboarding Details
             </h2>
 
+            <select className="border p-3 rounded-lg w-full mb-4" value={data.employee} onChange={e=>{const emp=employees.find(v=>v._id===e.target.value);setData({...data,employee:e.target.value,name:emp?.name || '',designation:emp?.designation || ''});}}><option value="">Select employee</option>{employees.map(e=><option key={e._id} value={e._id}>{e.name}</option>)}</select>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <input
+                value={data.name}
                 name="name"
                 placeholder="Employee Name"
                 className="border p-3 rounded-lg"
                 onChange={handleChange}
               />
               <input
+                value={data.designation}
                 name="designation"
                 placeholder="Designation"
                 className="border p-3 rounded-lg"
@@ -115,6 +124,7 @@ const Offboarding = () => {
               onChange={handleChange}
             ></textarea>
 
+            <button disabled={saving} className="bg-blue-600 text-white px-6 py-2 rounded-lg mr-3" onClick={async()=>{if(!data.employee || !data.lastWorkingDay)return alert('Select an employee and last working day');setSaving(true);try{await api.post(getApiUrl()+'/offboarding',data);alert('Offboarding saved');}catch(e){alert(e.response?.data?.message || 'Save failed');}finally{setSaving(false);}}}>Save offboarding</button>
             <button
               onClick={handlePrint}
               className="bg-orange-500 hover:bg-orange-700 text-white px-6 py-2 rounded-lg"

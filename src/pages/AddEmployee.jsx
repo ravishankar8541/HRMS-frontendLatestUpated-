@@ -49,7 +49,6 @@ const INITIAL_FORM_STATE = {
   designation: "",
   salary: "",
   dateOfJoining: "",
-  dateOfExit: "",
   dob: "",
   gender: "",
   address: "",
@@ -193,7 +192,7 @@ export default function AddEmployee() {
     const label = formatLabel(field);
 
     // Date fields
-    if (["dob", "dateOfJoining", "dateOfExit"].includes(field)) {
+    if (["dob", "dateOfJoining"].includes(field)) {
       return (
         <input
           type="date"
@@ -304,7 +303,7 @@ export default function AddEmployee() {
               <div key={field} className="space-y-1.5">
                 <label className={labelClass}>
                   {formatLabel(field)}
-                  {field !== "dateOfExit" && requiredMark}
+                  {requiredMark}
                 </label>
                 {renderField(field)}
               </div>

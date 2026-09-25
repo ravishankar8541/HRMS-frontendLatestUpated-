@@ -1,8 +1,3 @@
-/** API root without trailing /api — for static assets like /uploads */
-export const getServerBase = () => {
-  const api = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-  return api.replace(/\/api\/?$/, "");
-};
-
-export const getApiUrl = () =>
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const configured = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'https://hrms-backendlatest-1.onrender.com/api' : '/api')).replace(/\/+$/, '');
+export const getApiUrl = () => configured;
+export const getServerBase = () => configured.replace(/\/api$/, '');

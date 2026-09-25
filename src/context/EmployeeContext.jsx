@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import axios from "axios";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import axios from "../../services/api";
+import { getApiUrl } from "../utils/serverBase";
 
 const EmployeeContext = createContext();
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = getApiUrl();
 
 export const EmployeeProvider = ({ children }) => {
   const [employees, setEmployees] = useState([]);
@@ -32,22 +33,22 @@ export const EmployeeProvider = ({ children }) => {
       setToken(authToken);
       localStorage.setItem("token", authToken);
       localStorage.setItem("user", JSON.stringify(userData));
-      return { success: true };
+      return { success: true, user: userData };
     } catch (error) {
       throw new Error(error.response?.data?.message || "Login failed");
     }
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null);
     setToken(null);
     setEmployees([]);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-  };
+  }, []);
 
-  const fetchEmployees = async () => {
-    if (!token) return;
+  const fetchEmployees = useCallback(async () => {
+    if (!token || !["admin", "hr"].includes(JSON.parse(localStorage.getItem("user") || "null")?.role)) return;
     setLoading(true);
     try {
       const res = await axios.get(`${API_URL}/employee`, {
@@ -59,7 +60,7 @@ export const EmployeeProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, logout]);
 
   const addEmployee = async (data) => {
     const res = await axios.post(`${API_URL}/employee`, data, {
@@ -156,6 +157,7 @@ export const EmployeeProvider = ({ children }) => {
   const submitOnboarding = async (employeeId, formData) => {
     const data = new FormData();
     Object.keys(formData).forEach((key) => {
+      if (["photo","idProof","addressProof","educationProof","experienceLetter"].includes(key) && !(formData[key] instanceof File)) return;
       if (formData[key] !== null && formData[key] !== undefined) {
         data.append(key, formData[key]);
       }
@@ -163,7 +165,7 @@ export const EmployeeProvider = ({ children }) => {
 
     try {
       const res = await axios.post(`${API_URL}/onboarding/submit/${employeeId}`, data, {
-        headers: { "Content-Type": "multipart/form-data" },
+
       });
       await fetchEmployees();
       return res.data;
@@ -175,10 +177,10 @@ export const EmployeeProvider = ({ children }) => {
   };
 
   // Vault Service
-  const fetchAllDocuments = async (params = {}) => {
+  const fetchAllDocuments = useCallback(async (params = {}) => {
     const res = await axios.get(`${API_URL}/documents`, { params });
     return res.data;
-  };
+  }, []);
 
   const bulkDownloadZip = async (documents) => {
     const res = await axios.post(`${API_URL}/documents/bulk-download`, { documents }, {
@@ -191,6 +193,7 @@ export const EmployeeProvider = ({ children }) => {
     document.body.appendChild(link);
     link.click();
     link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const deleteDocument = async (docType, id) => {
@@ -202,7 +205,7 @@ export const EmployeeProvider = ({ children }) => {
 
   useEffect(() => {
     if (token) fetchEmployees();
-  }, [token]);
+  }, [token, fetchEmployees]);
 
   return (
     <EmployeeContext.Provider
@@ -240,6 +243,8 @@ export const EmployeeProvider = ({ children }) => {
   );
 };
 
+// Context consumers are intentionally exported alongside the provider.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useEmployee = () => {
   const context = useContext(EmployeeContext);
   if (!context) throw new Error("useEmployee must be used within EmployeeProvider");

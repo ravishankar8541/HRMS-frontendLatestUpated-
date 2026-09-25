@@ -1,5 +1,7 @@
+import { vaultForm } from '../utils/vaultForm';
+import VaultEditNotice from '../components/VaultEditNotice';
+import DocumentPreview from "../components/DocumentPreview";
 import React, { useState, useEffect, useRef } from "react";
-import { useReactToPrint } from "react-to-print";
 import { useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { useEmployee } from "../context/EmployeeContext";
@@ -30,13 +32,13 @@ export default function SalarySlip() {
   const location = useLocation();
   const printRef = useRef(null);
 
-  const [data, setData] = useState({
+  const [data, setData] = useState(() => vaultForm({
     empId: "", name: "", designation: "", month: "", doj: "",
     pan: "", aadhar: "", accNo: "", ifsc: "", phone: "",
     nod: "30",
     basic: "", allowance: "0", bonus: "0", pf: "0", totalLeaveDays: "0", otherDeduction: "0",
     email: ""
-  });
+  }, location.state?.vaultDocument, {empId:'employeeId',name:'employeeName',email:'employeeEmail',month:'monthYear',doj:'joiningDate',pan:'panNumber',aadhar:'aadharNumber',accNo:'bankAccount',nod:'workingDays',basic:'basicSalary',pf:'pfDeduction',totalLeaveDays:'lopDays'}));
 
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -74,20 +76,9 @@ export default function SalarySlip() {
   const totalDeductions = Math.round((Number(data.pf || 0) + leaveDeduction + Number(data.otherDeduction || 0)) * 100) / 100;
   const netSalary = Math.round((totalEarnings - totalDeductions) * 100) / 100;
 
-  const generatePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `Payslip_${data.name || "Employee"}_${(data.month || "period").replace("/", "-")}`,
-  });
-
-  const handleChange = (e) => setData({ ...data, [e.target.name]: e.target.value });
-
-  const handleSendEmail = async () => {
-    if (!data.email.trim()) return alert("Please enter a recipient email");
-    if (!data.month) return alert("Please select a Salary Month");
-    if (!data.basic) return alert("Please enter the Basic Salary");
-
-    setLoading(true);
-    try {
+  const [pdfId,setPdfId]=useState(null);
+  const savedRecord=useRef(null);
+  const ensureRecord=async()=>{
       const salaryPayload = {
         employeeName: data.name,
         email: data.email,
@@ -109,8 +100,26 @@ export default function SalarySlip() {
         otherDeduction: Number(data.otherDeduction) || 0,
       };
 
+      const key=JSON.stringify(salaryPayload);
+      if(savedRecord.current?.key===key)return savedRecord.current.id;
       const createRes = await createSalarySlip(salaryPayload);
       const recordId = createRes?.data?._id || createRes?._id;
+
+
+      savedRecord.current={key,id:recordId};return recordId;
+  };
+  const generatePrint=async()=>{if(loading)return;setLoading(true);try{setPdfId(await ensureRecord());}catch(e){alert(e.response?.data?.message || e.message);}finally{setLoading(false);}};
+
+  const handleChange = (e) => setData({ ...data, [e.target.name]: e.target.value });
+
+  const handleSendEmail = async () => {
+    if (!data.email.trim()) return alert("Please enter a recipient email");
+    if (!data.month) return alert("Please select a Salary Month");
+    if (!data.basic) return alert("Please enter the Basic Salary");
+
+    setLoading(true);
+    try {
+      const recordId = await ensureRecord();
 
       if (!recordId) throw new Error("Record created but ID not received.");
 
@@ -128,8 +137,10 @@ export default function SalarySlip() {
     <div className="flex bg-slate-100 min-h-screen">
       <div className="no-print"><Sidebar /></div>
 
-      <main className="flex-1 p-8">
-        <div className="max-w-4xl mx-auto">
+      {pdfId && <DocumentPreview type="Salary Slip" id={pdfId} onClose={()=>setPdfId(null)}/>}
+      <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
+        <VaultEditNotice />
+        <div className="w-full">
           {/* Form Controls */}
           <div className="no-print bg-white rounded-xl shadow-md p-8 border border-slate-200 mb-10">
             <h1 className="text-2xl font-bold mb-6 text-gray-800 border-l-4 border-orange-600 pl-4 uppercase tracking-wide">

@@ -1,5 +1,8 @@
+import { useLocation } from 'react-router-dom';
+import { vaultForm } from '../utils/vaultForm';
+import VaultEditNotice from '../components/VaultEditNotice';
+import DocumentPreview from "../components/DocumentPreview";
 import { useState, useRef, useEffect } from "react";
-import { useReactToPrint } from "react-to-print";
 import { useEmployee } from "../context/EmployeeContext";
 import Sidebar from "../components/Sidebar";
 
@@ -72,8 +75,9 @@ function CustomDropdown({ name, value, onChange, options, placeholder }) {
 }
 
 export default function OfferLetter() {
+  const location = useLocation();
   const { createOfferLetter, sendOfferLetterEmail } = useEmployee();
-  const [formData, setFormData] = useState(initialFormData);
+  const [formData, setFormData] = useState(() => vaultForm(initialFormData, location.state?.vaultDocument, {}));
   const [preview, setPreview] = useState(false);
   const [offerId, setOfferId] = useState("");
   const [dbId, setDbId] = useState("");
@@ -83,10 +87,8 @@ export default function OfferLetter() {
 
   const printRef = useRef(null);
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `Offer_Letter_${formData.employeeName || "Candidate"}`,
-  });
+  const [pdfOpen,setPdfOpen]=useState(false);
+  const handlePrint = async () => {  setPdfOpen(true); };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -101,6 +103,7 @@ export default function OfferLetter() {
       setOfferId(result.offerId);
       setDbId(result.data._id);
       setPreview(true);
+      setPdfOpen(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       alert(err.message || "Error generating offer letter");
@@ -137,8 +140,10 @@ export default function OfferLetter() {
 
       <div className="no-print"><Sidebar /></div>
 
-      <main className="flex-1 p-8 print:p-0">
-        <div className="max-w-4xl mx-auto">
+      {pdfOpen && dbId && <DocumentPreview type="Offer Letter" id={dbId} onClose={()=>setPdfOpen(false)}/>}
+      <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8 print:p-0">
+        <VaultEditNotice />
+        <div className="w-full">
           {!preview ? (
             <div className="bg-white rounded-xl shadow-md p-8 no-print">
               <h1 className="text-2xl font-bold mb-6 text-gray-800">Generate Offer Letter</h1>

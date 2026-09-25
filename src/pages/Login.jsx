@@ -50,10 +50,10 @@ const Login = () => {
 
     try {
       setError("");
-      await login({ username: username.trim(), password, role: formData.role });
-      navigate("/dashboard");
+      const result = await login({ username: username.trim(), password, role: formData.role });
+      navigate(result.user.role === "employee" ? "/documents" : "/dashboard");
     } catch (err) {
-      setError("Invalid credentials");
+      setError(err.message || "Invalid credentials");
     }
   };
 

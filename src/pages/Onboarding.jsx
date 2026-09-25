@@ -1,12 +1,14 @@
+import DocumentPreview from "../components/DocumentPreview";
+import PrivateImage from "../components/PrivateImage";
 import React, { useState, useRef, useEffect } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { useEmployee } from "../context/EmployeeContext";
 import { getServerBase } from "../utils/serverBase";
 
 const Onboarding = () => {
     const printRef = useRef();
-    const navigate = useNavigate();
+
     const [searchParams] = useSearchParams();
     const employeeIdParam = searchParams.get("employeeId");
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(employeeIdParam || "");
@@ -123,6 +125,7 @@ const Onboarding = () => {
         return Object.keys(newErrors).length === 0;
     };
 
+    const [pdfOpen,setPdfOpen]=useState(false);
     const handleSubmitAndPrint = async () => {
         if (!validateForm()) {
             alert("Please fill all required fields and upload mandatory documents.");
@@ -142,9 +145,7 @@ const Onboarding = () => {
                 setFormData((prev) => ({ ...prev, empId: savedEmp.empId }));
             }
             alert("Onboarding data saved to database successfully!");
-            setTimeout(() => {
-                window.print();
-            }, 500);
+            setPdfOpen(true);
         } catch (err) {
             console.error(err);
             alert(err.message || "Failed to save data to backend.");
@@ -160,7 +161,7 @@ const Onboarding = () => {
                 <tbody>
                     <tr>
                         <td style={{ width: "60%" }}>
-                            <img src="/blackLogo.png" alt="Logo" style={{ width: "180px", height: "auto" }} />
+                            <img src="/blackLogo.png" alt="Viral Ads Media" loading="eager" style={{ width: "180px", height: "auto", display: "block" }} />
                             <div style={{ fontSize: "10px", fontWeight: "bold", color: "#666", letterSpacing: "1px", marginTop: "4px" }}>DIGITAL CREATIVE AGENCY</div>
                         </td>
                         <td style={{ textAlign: "right", fontSize: "11px", color: "#333", verticalAlign: "middle" }}>
@@ -188,8 +189,9 @@ const Onboarding = () => {
                 <Sidebar />
             </div>
 
-            <main className="flex-1 p-8 print:p-0">
-                <div className="max-w-4xl mx-auto">
+            {pdfOpen && <DocumentPreview type="Onboarding Report" id={employeeId} onClose={()=>setPdfOpen(false)}/>}
+            <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8 print:p-0">
+                <div className="w-full">
 
                     {/* FORM SECTION - DESIGN MATCHED */}
                     <div className="bg-white rounded-xl shadow-md p-8 no-print border border-slate-200">
@@ -254,7 +256,7 @@ const Onboarding = () => {
                                 <label className="block text-sm font-medium mb-1">Employee Photo</label>
                                 <div className="flex items-center gap-4">
                                     {formData.photo && (
-                                        <img
+                                        <PrivateImage
                                             src={
                                                 formData.photo instanceof File
                                                     ? URL.createObjectURL(formData.photo)
@@ -374,7 +376,7 @@ const Onboarding = () => {
                                             </td>
                                             <td style={{ width: "25%", textAlign: "right", verticalAlign: "top" }}>
                                                 {formData.photo && (
-                                                    <img
+                                                    <PrivateImage
                                                         src={formData.photo instanceof File 
                                                             ? URL.createObjectURL(formData.photo) 
                                                             : getPhotoUrl(formData.photo)}
@@ -405,11 +407,7 @@ const Onboarding = () => {
                                     <div style={{ height: "40px" }}></div>
                                     <p>__________________________<br /><strong>HR Department</strong><br />Viral Ads Media</p>
                                 </div>
-                                <div style={{ textAlign: "right" }}>
-                                    <p>Employee Acknowledgment,</p>
-                                    <div style={{ height: "40px" }}></div>
-                                    <p>__________________________<br /><strong>{formData.name || "Employee"}</strong><br />Signature</p>
-                                </div>
+                             
                             </div>
 
                             <div style={{ position: "absolute", bottom: "15mm", left: 0, right: 0, textAlign: "center", fontSize: "10.5px", color: "#777" }}>

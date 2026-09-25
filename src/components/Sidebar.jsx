@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -33,7 +33,6 @@ const menuItems = [
   { name: "Salary Slip", path: "/salary", icon: Receipt },
   { name: "Termination Letter", path: "/termination", icon: UserX },
   { name: "Onboarding", path: "/onboarding", icon: UserPlus },
-  { name: "Offboarding", path: "/offboarding", icon: UserMinus },
   { name: "FNF", path: "/fnf", icon: FileSpreadsheet },
 ];
 
@@ -45,9 +44,7 @@ const Sidebar = () => {
     location.pathname.startsWith("/employees")
   );
 
-  useEffect(() => {
-    setIsEmployeesOpen(location.pathname.startsWith("/employees"));
-  }, [location.pathname]);
+
 
   const logout = () => {
     localStorage.removeItem("user");
@@ -68,19 +65,20 @@ const Sidebar = () => {
     "text-slate-400 hover:bg-slate-800/40 hover:text-slate-100";
 
   return (
-    <aside className="hidden lg:flex lg:flex-col lg:w-72 bg-[#0f172a] text-slate-100 h-screen sticky top-0 border-r border-slate-800/50 select-none">
-      <div className="px-8 pt-8 pb-8">
-        <h2 className="text-2xl font-black tracking-tight text-white leading-none">
-          VIRAL ADS <span className="text-orange-500">HRMS</span>
-        </h2>
+    <aside className="hidden lg:flex lg:flex-col lg:w-72 shrink-0 bg-[#0f172a] text-slate-100 h-screen sticky top-0 border-r border-slate-800/50 select-none">
+      <div className="flex shrink-0 items-center justify-center border-b border-slate-800/50 px-8 py-6 mb-5">
+        {/* Frame the artwork inside the square asset without its empty margins. */}
+        <svg viewBox="400 1800 4000 1480" role="img" aria-label="Viral Ads Media" className="block h-auto w-full max-w-56">
+          <image href="/logo.png" width="5000" height="5000" />
+        </svg>
       </div>
 
-      <nav className="flex-1 px-4 overflow-y-auto scrollbar-hide space-y-1">
+      <nav className="min-h-0 flex-1 px-4 overflow-y-auto scrollbar-hide space-y-1">
         <div className="mb-3 px-4 text-[11px] font-bold uppercase tracking-widest text-slate-600">
           Workflows & Letters
         </div>
 
-        {menuItems.map((item) => {
+        {menuItems.filter(item => JSON.parse(localStorage.getItem('user') || 'null')?.role !== 'employee' || item.path === '/documents').map((item) => {
           if (item.children) {
             const isOpen = isEmployeesOpen;
             const isActiveSection = isSectionActive("/employees");
